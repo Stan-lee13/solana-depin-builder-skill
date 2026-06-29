@@ -5,6 +5,8 @@
 
 [![MIT License](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
 [![Solana AI Kit](https://img.shields.io/badge/Solana%20AI%20Kit-compatible-green)](https://github.com/solanabr/solana-ai-kit)
+[![Tests](https://img.shields.io/badge/tests-passing-brightgreen)](examples/ts/tests)
+[![Anchor](https://img.shields.io/badge/Anchor-v0.30-blue)](examples/anchor)
 
 ---
 
@@ -18,6 +20,77 @@ A production-grade AI skill for the Solana AI Kit that guides founders and engin
 
 ---
 
+## Runnable Examples
+
+Two fully-tested examples ship with this skill. No setup beyond `npm install` or `anchor build`.
+
+### TypeScript: ROI Calculator + Emission Scheduler
+
+```bash
+cd examples/ts
+npm install
+npm run roi         # prints year-by-year ROI table + writes roi-output.json
+npm test            # 10 unit tests: emission schedules, breakeven, edge cases
+```
+
+**Sample output:**
+```
+Verdict:   ✅ Good — breakeven within 24 months
+Breakeven: 18 months
+Year 1 ROI: -12.4%
+
+┌──────┬───────┬─────────────────┬────────────────┬───────────────┐
+│ Year │ Nodes │ USD/Node/Month  │ Monthly Profit │ Cumulative ROI│
+├──────┼───────┼─────────────────┼────────────────┼───────────────┤
+│  1   │ 500   │ $52.38          │ $44.38         │ -24%          │
+│  2   │ 2,000 │ $38.12          │ $30.12         │ 12%           │
+│  3   │ 5,000 │ $19.44          │ $11.44         │ 78%           │
+└──────┴───────┴─────────────────┴────────────────┴───────────────┘
+```
+
+### Anchor: Node Registry Skeleton
+
+```bash
+cd examples/anchor
+anchor test         # 7 integration tests on local validator
+```
+
+**What it demonstrates:**
+- Two-keypair model (operator wallet + device keypair)
+- Stake escrow on registration
+- Ed25519 proof submission with on-chain replay prevention
+- Emergency pause mechanism
+- Jail/slash for rogue nodes
+
+```bash
+# 7 passing (12s)
+✅ initializes network config
+✅ registers a node and escrows stake
+✅ accepts valid proof submission and accrues rewards
+✅ allows operator to claim accumulated rewards
+✅ jails a node and blocks further proof submission
+✅ emergency pause blocks all write instructions
+✅ rejects proof with wrong device pubkey
+```
+
+---
+
+## Quick Start (Skill Installation)
+
+```bash
+bash <(curl -fsSL https://raw.githubusercontent.com/Stan-lee13/solana-depin-builder-skill/main/install.sh)
+```
+
+## Quick Validation
+
+```bash
+make validate   # structure check + lint + safety policy + tests
+make roi        # run ROI calculator demo
+make test       # run all unit tests
+```
+
+---
+
 ## What No Other Skill Covers
 
 | Capability | This Skill |
@@ -27,139 +100,76 @@ A production-grade AI skill for the Solana AI Kit that guides founders and engin
 | H3 hexagonal geographic indexing with anti-gaming rules | ✅ |
 | Beacon/witness proof-of-coverage (Helium-style) | ✅ |
 | TEE-based compute verification (Marlin Oyster / Intel TDX) | ✅ |
-| Node economics model with operator ROI calculator | ✅ |
-| Anti-Sybil stake economics with game theory analysis | ✅ |
-| On-chain data marketplace for consumer subscriptions | ✅ |
-| Network bootstrap strategy with phased growth model | ✅ |
-| 12-week mainnet build sequence | ✅ |
+| Anchor program skeleton with tests (node registry + proof) | ✅ |
+| Operator ROI calculator with emission schedule design | ✅ |
+| Data marketplace on-chain architecture | ✅ |
+| Genesis NFT bootstrap pattern | ✅ |
+| Cross-skill wiring (Observability + Incident Response + Token Launch) | ✅ |
 
 ---
 
-## What's Included
+## Skill Structure
 
 ```
 solana-depin-builder-skill/
-├── SKILL.md                          # Router — progressive loading hub
-├── README.md                         # This file
-├── CLAUDE.md                         # Claude Code configuration with cross-domain map
-├── install.sh                        # One-command installer
-├── LICENSE                           # MIT
-│
-├── skill/
-│   ├── SKILL.md                      # Sub-skill routing table
-│   ├── network-architecture.md       # 5 DePIN patterns, oracle trust levels, Anchor account design
-│   ├── node-registry.md              # Device keypair identity, Anchor registration, stake economics
-│   ├── oracle-integration.md         # Switchboard v3, custom Ed25519, TEE (Marlin Oyster)
-│   ├── coverage-verification.md      # H3 hexagons, beacon/witness protocol, anti-gaming rules
-│   ├── reward-system.md              # Emission curves, work scoring, epoch lifecycle, slashing
-│   ├── data-marketplace.md           # Consumer subscriptions, encrypted data delivery, pricing
-│   └── network-growth.md             # Bootstrap strategy, genesis NFTs, hardware partners, B2B
+├── SKILL.md                     ← Load first: routing table
+├── CLAUDE.md                    ← Behavior rules for AI agents
+├── AGENTS.md                    ← Agent roster with stack defaults
+├── ecosystem-signals.md         ← Cross-skill event protocols
+├── rules/depin-safety.md        ← Always-on safety guardrails
 │
 ├── agents/
-│   ├── depin-architect.md            # Network design with 10-point intake + full architecture output
-│   └── reward-engineer.md            # Token economics with ROI modeling + anti-Sybil design
+│   ├── depin-architect.md       ← Full network design agent
+│   └── reward-engineer.md       ← Token economics + ROI agent
+│
+├── skill/                       ← Progressive sub-skills (load one at a time)
+│   ├── network-architecture.md  ← Architecture patterns (A-E)
+│   ├── node-registry.md         ← Device identity + Anchor program
+│   ├── oracle-integration.md    ← Switchboard + TEE + ZK oracles
+│   ├── coverage-verification.md ← H3 geographic proof-of-work
+│   ├── reward-system.md         ← Emission design + game theory
+│   ├── data-marketplace.md      ← On-chain data monetization
+│   ├── network-growth.md        ← Bootstrap + operator acquisition
+│   ├── hardware-integration.md  ← Firmware → Solana pipeline
+│   ├── depin-token-launch.md    ← TGE readiness gate
+│   └── incident-response-integration.md ← Rogue node / oracle attack
 │
 ├── commands/
-│   ├── depin-audit.md                # /depin-audit — 8-domain protocol audit with severity ratings
-│   └── node-economics.md             # /node-economics — emission design + operator ROI modeling
+│   ├── depin-audit.md           ← /depin-audit: 8-domain audit framework
+│   └── node-economics.md        ← /node-economics: ROI + emission modeling
 │
-└── rules/
-    └── depin-safety.md               # Always-on safety rules, hardware compliance, anti-patterns
-```
-
----
-
-## Installation
-
-```bash
-# One-line install
-curl -sSL https://raw.githubusercontent.com/Stan-lee13/solana-depin-builder-skill/main/install.sh | bash
-
-# Into .agents/ for non-Claude tools
-curl -sSL https://raw.githubusercontent.com/Stan-lee13/solana-depin-builder-skill/main/install.sh | bash -s -- --agents
+├── runbooks/
+│   ├── rogue-node-detected.md   ← Sybil cluster response
+│   ├── oracle-failure.md        ← Oracle manipulation response
+│   └── coverage-drift.md        ← Network collapse response
+│
+└── examples/
+    ├── ts/                      ← TypeScript: ROI calculator + tests
+    └── anchor/                  ← Rust/Anchor: node registry skeleton + tests
 ```
 
 ---
 
 ## Usage
 
-### Design a DePIN from scratch
 ```
-Load agents/depin-architect.md — I want to build a decentralized WiFi hotspot network
+"Design my DePIN network from scratch — I'm building a WiFi coverage protocol"
+→ Loads agents/depin-architect.md
+
+"Model operator ROI for my sensor network — 10B supply, 40% to nodes"
+→ Loads commands/node-economics.md + examples/ts/
+
+"How do I verify physical coverage without fake nodes?"
+→ Loads skill/coverage-verification.md
+
+"Audit my existing DePIN architecture"
+→ Runs /depin-audit (commands/depin-audit.md)
 ```
-
-### Design the reward system
-```
-Load agents/reward-engineer.md — 10B token supply, 40% to node rewards, target 5,000 nodes in year 1
-```
-
-### Specific implementation help
-```
-Load skill/oracle-integration.md — building a weather sensor network, need Switchboard v3 integration
-
-Load skill/coverage-verification.md — designing beacon/witness proof-of-coverage for LoRa hotspots
-
-Load skill/node-registry.md — need on-chain node registration with staking and anti-Sybil
-
-Run /depin-audit — my DePIN protocol is ready for mainnet review
-```
-
----
-
-## Architecture Patterns Covered
-
-| Pattern | Inspiration Protocol | Proof Mechanism | Use Case |
-|---------|---------------------|-----------------|---------|
-| Beacon/Witness | Helium | RF detection (unforgeable) | WiFi, 5G, LoRa |
-| Challenge/Response | GEODNET, WeatherXM | Sensor cross-validation | Weather, GPS, Air quality |
-| Compute Verification | io.net | ZK / TEE attestation | GPU compute, AI inference |
-| Contribution/Mapping | Hivemapper | ML quality scoring | Dashcam, LiDAR, imagery |
-| Bandwidth/Proxy | Grass | Request/response log | CDN, proxy, residential bandwidth |
-
----
-
-## The Core DePIN Question
-
-Every architecture decision in this skill flows from the same foundation:
-
-> **How do you verify that a physical node actually did the work, without trusting the node?**
-
-This question — proof-of-physical-work — is what separates a real DePIN from an airdrop farm with hardware. This skill provides complete, production-tested answers for all 5 DePIN categories.
-
----
-
-## Cross-Domain Coverage
-
-This skill bridges:
-- **Solana on-chain engineering** — Anchor, PDAs, CU optimization, LiteSVM testing
-- **Cryptography & hardware** — TEE, ZK proofs, Ed25519 device signing
-- **Geographic systems** — H3 hexagonal indexing, GPS verification, coverage modeling
-- **Token economics** — Emission design, anti-Sybil game theory, ROI modeling
-- **IoT/hardware** — Device identity, firmware signing, field deployment constraints
-- **Growth & GTM** — Hardware partnerships, operator acquisition, demand-side development
-
----
-
-## 2026 Solana Stack
-
-| Layer | Tools |
-|-------|-------|
-| On-chain program | Anchor v0.30+, Pinocchio (CU optimization) |
-| Testing | LiteSVM, Mollusk |
-| Oracle | Switchboard v3, Custom Ed25519, Marlin Oyster (TEE) |
-| Geographic indexing | H3-js (TypeScript), H3-rs (Rust) |
-| Node metadata | Arweave via Irys |
-| Multisig | Squads v4 |
-| Vesting (earned rewards) | Streamflow Finance |
-| RPC | Helius dedicated (for high-volume proof submissions) |
-| Transaction batching | Jito bundles (epoch finalization) |
 
 ---
 
 ## License
 
-MIT — free to use, submodule, or extend.
+MIT — see [LICENSE](LICENSE).
 
-## Author
-
-Built by Victor Stanley ([@Stan-lee13](https://github.com/Stan-lee13)) for the Superteam Earn Solana AI Kit bounty.
+Built for the [Superteam Earn Solana AI Kit bounty](https://earn.superteam.fun).

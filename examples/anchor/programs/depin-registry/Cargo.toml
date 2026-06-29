@@ -1,0 +1,13 @@
+[package]
+name = "depin-registry"
+version = "0.1.0"
+edition = "2021"
+description = "Minimal DePIN node registry + proof submission skeleton for Solana"
+license = "MIT"
+
+[lib]
+crate-type = ["cdylib", "lib"]
+name = "depin_registry"
+
+[dependencies]
+anchor-lang = { workspace = true }

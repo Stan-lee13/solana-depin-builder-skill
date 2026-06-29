@@ -1,0 +1,14 @@
+{
+  "recommendations": [
+    "dbaeumer.vscode-eslint",
+    "esbenp.prettier-vscode",
+    "rust-lang.rust-analyzer",
+    "tamasfe.even-better-toml",
+    "wayou.vscode-todo-highlight",
+    "streetsidesoftware.code-spell-checker",
+    "bierner.markdown-mermaid",
+    "yzhang.markdown-all-in-one",
+    "redhat.vscode-yaml",
+    "ms-vscode.makefile-tools"
+  ]
+}

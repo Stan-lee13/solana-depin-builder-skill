@@ -2,6 +2,41 @@
 
 Design the system architecture for your DePIN protocol before writing a single line of code. Getting this wrong is expensive and often irreversible once nodes are deployed in the field.
 
+## Architecture Overview Diagram
+
+```mermaid
+graph TB
+    subgraph On-Chain
+        P[Solana Program]
+        NC[Network Config]
+        NA[Node Accounts]
+        RA[Reward Accounts]
+    end
+    
+    subgraph Off-Chain
+        O[Oracle Service]
+        N[Nodes]
+        C[Clients]
+    end
+    
+    subgraph External
+        RPC[RPC Provider]
+        MON[Monitoring]
+        ALERT[Alerting]
+    end
+    
+    N -->|Submit Proof| O
+    O -->|Verify| P
+    P -->|Update| NA
+    P -->|Calculate| RA
+    P -->|Emit Event| RPC
+    RPC -->|Forward| MON
+    MON -->|Alert| ALERT
+    C -->|Query| RPC
+    RPC -->|Fetch| P
+    P -->|Return| C
+```
+
 ## Step 1 — Define your network's value proposition
 
 Answer these before designing anything:

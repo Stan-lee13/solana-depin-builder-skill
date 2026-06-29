@@ -2,6 +2,33 @@
 
 Getting trustworthy real-world data from physical devices onto Solana is the hardest engineering problem in DePIN. This skill covers all viable approaches for 2026.
 
+## Oracle Architecture Diagram
+
+```mermaid
+graph LR
+    subgraph Node
+        D[Device]
+        S[Signature]
+    end
+    
+    subgraph Oracle
+        V[Verifier]
+        A[Aggregator]
+        SG[Signer]
+    end
+    
+    subgraph Solana
+        P[Program]
+        F[Feed Account]
+    end
+    
+    D -->|Proof| V
+    V -->|Validated| A
+    A -->|Aggregated| SG
+    SG -->|Signed| P
+    P -->|Store| F
+```
+
 ## The oracle design decision tree
 
 ```

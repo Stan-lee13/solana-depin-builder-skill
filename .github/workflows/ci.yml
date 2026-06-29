@@ -1,0 +1,161 @@
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main, develop]
+
+jobs:
+  # TypeScript Examples
+  test-typescript:
+    name: Test TypeScript Examples
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: examples/ts/package-lock.json
+      
+      - name: Install dependencies
+        working-directory: examples/ts
+        run: npm ci
+      
+      - name: Run tests
+        working-directory: examples/ts
+        run: npm test
+      
+      - name: Run ROI calculator
+        working-directory: examples/ts
+        run: npm run roi
+      
+      - name: Security audit
+        working-directory: examples/ts
+        run: npm audit --audit-level=moderate
+      
+      - name: Run Snyk security scan
+        uses: snyk/actions/node@master
+        env:
+          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+        with:
+          args: --severity-threshold=high
+          command: test
+
+  # Anchor Program
+  test-anchor:
+    name: Test Anchor Program
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Install Rust
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+          profile: minimal
+      
+      - name: Install Solana CLI
+        run: sh -c "$(curl -sSfL https://release.solana.com/v1.18.4/install)"
+      
+      - name: Install Anchor
+        run: cargo install --git https://github.com/coral-xyz/anchor avm --locked --force
+      - run: avm install latest
+      - run: avm use latest
+      
+      - name: Build Anchor program
+        working-directory: examples/anchor
+        run: anchor build
+      
+      - name: Run Anchor tests
+        working-directory: examples/anchor
+        run: anchor test --skip-local-validator
+      
+      - name: Security audit (Cargo)
+        working-directory: examples/anchor
+        run: cargo audit
+      
+      - name: Run Snyk security scan
+        uses: snyk/actions/rust@master
+        env:
+          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+        with:
+          args: --severity-threshold=high
+          command: test
+
+  # Markdown Linting
+  lint-markdown:
+    name: Lint Markdown
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      
+      - name: Install markdownlint
+        run: npm install -g markdownlint-cli
+      
+      - name: Run markdownlint
+        run: markdownlint '**/*.md' --config .markdownlint.json
+
+  # Structure Validation
+  validate-structure:
+    name: Validate Structure
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Check required files exist
+        run: |
+          test -f SKILL.md || exit 1
+          test -f CLAUDE.md || exit 1
+          test -f AGENTS.md || exit 1
+          test -f README.md || exit 1
+          test -f rules/depin-safety.md || exit 1
+          test -f agents/depin-architect.md || exit 1
+          test -f agents/reward-engineer.md || exit 1
+          test -f skill/network-architecture.md || exit 1
+          test -f skill/oracle-integration.md || exit 1
+          test -f skill/coverage-verification.md || exit 1
+          test -f skill/reward-system.md || exit 1
+          test -f skill/node-registry.md || exit 1
+          test -f skill/data-marketplace.md || exit 1
+          test -f skill/network-growth.md || exit 1
+          test -f skill/hardware-integration.md || exit 1
+          test -f skill/depin-token-launch.md || exit 1
+          test -f skill/incident-response-integration.md || exit 1
+          test -f commands/depin-audit.md || exit 1
+          test -f commands/node-economics.md || exit 1
+          echo "✅ All required files exist"
+
+  # Test Coverage
+  coverage:
+    name: Test Coverage
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      
+      - name: Install dependencies
+        working-directory: examples/ts
+        run: npm ci
+      
+      - name: Generate coverage report
+        working-directory: examples/ts
+        run: npm run test:coverage
+      
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v4
+        with:
+          file: examples/ts/coverage/lcov.info
+          flags: typescript

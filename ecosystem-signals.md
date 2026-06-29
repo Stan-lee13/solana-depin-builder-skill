@@ -1,8 +1,13 @@
-# DePIN Ecosystem Signals
+# Ecosystem Signals — DePIN Builder Skill
 
-> This file defines the cross-skill communication protocol for the DePIN Builder skill.
-> It standardizes how DePIN events propagate to Observability, Incident Response,
-> Token Launch, and UX skills — and how those skills feed back into DePIN operations.
+> **Canonical location:** `ecosystem-signals.md` (repo root)
+>
+> This is the single authoritative source for all cross-skill communication
+> protocols in the DePIN Builder skill. It covers both the DePIN-specific
+> typed signal schemas and the generic cross-skill event framework.
+>
+> Load this file when you need to emit or handle any signal that crosses
+> skill boundaries.
 
 ---
 
@@ -10,10 +15,10 @@
 
 ```
 OUTBOUND (DePIN → other skills)
-  ├── DePIN → Observability     : node health metrics, oracle anomalies, coverage drift
-  ├── DePIN → Incident Response : rogue node detection, oracle manipulation, drain events
-  ├── DePIN → Token Launch      : TGE readiness checklist, network maturity signals
-  └── DePIN → UX               : operator dashboard events, slash notifications
+  ├── DePIN → Observability     : node health metrics, network milestones, performance degradation
+  ├── DePIN → Incident Response : rogue nodes, oracle anomalies, security events, coverage drift
+  ├── DePIN → Token Launch      : TGE readiness gate
+  └── DePIN → UX / Operator     : operator alerts, slash notifications, session key expiry
 
 INBOUND (other skills → DePIN)
   ├── Incident Response → DePIN : confirmed exploit → pause reward distribution
@@ -23,77 +28,72 @@ INBOUND (other skills → DePIN)
 
 ---
 
-## Signal Schemas
+## Part 1 — Typed Signal Schemas (Production)
 
-### 1. Node Health Signal → Observability
+These are the strongly-typed signal interfaces used in production code.
+Use these when implementing the emit function or writing signal handlers.
+
+### DEPIN_NODE_HEALTH → Observability
 
 Emitted every epoch by the reward crank when distributing rewards.
 
 ```typescript
 // src/signals/node-health-signal.ts
-export interface NodeHealthSignal {
+export interface DepinNodeHealthSignal {
   signal: "DEPIN_NODE_HEALTH";
   source_skill: "solana-depin-builder-skill";
-  network_id: string;            // your protocol name slug
+  network_id: string;
   epoch: number;
-  node_address: string;          // device registration account pubkey
+  node_address: string;
   operator_address: string;
   status: "active" | "warning" | "offline" | "jailed";
   uptime_pct_7d: number;
   proof_submissions_epoch: number;
-  reward_earned_epoch: number;   // in token base units
+  reward_earned_epoch: number;   // token base units
   slash_count_30d: number;
-  h3_index?: string;             // geographic location (if applicable)
+  h3_index?: string;
   timestamp_utc: string;
 }
-
-// Emit to observability skill's Prometheus metric:
-// solana_depin_node_active{node_address, node_type}
-// solana_depin_node_stake_lamports{node_address}
-// solana_depin_epoch_reward_tokens{node_address}
+// Prometheus metrics: solana_depin_node_active, solana_depin_node_stake_lamports
 ```
 
-### 2. Oracle Anomaly Signal → Incident Response
-
-Fired when oracle deviation exceeds threshold or validation fails.
+### DEPIN_ORACLE_ANOMALY → Incident Response + Observability (alert)
 
 ```typescript
-export interface OracleAnomalySignal {
+export interface DepinOracleAnomalySignal {
   signal: "DEPIN_ORACLE_ANOMALY";
   source_skill: "solana-depin-builder-skill";
   severity: "P0" | "P1" | "P2";
   network_id: string;
-  oracle_feed: string;           // Switchboard feed pubkey or custom oracle ID
+  oracle_feed: string;
   anomaly_type:
-    | "DEVIATION_EXCEEDED"       // value deviated > threshold vs peer oracles
-    | "SUBMISSION_STALE"         // no new value submitted in expected window
-    | "SYBIL_CLUSTER_DETECTED"   // multiple proofs from same geographic origin
-    | "REPLAY_ATTACK"            // duplicate proof hash detected
-    | "SIGNATURE_INVALID";       // device signature fails verification
+    | "DEVIATION_EXCEEDED"
+    | "SUBMISSION_STALE"
+    | "SYBIL_CLUSTER_DETECTED"
+    | "REPLAY_ATTACK"
+    | "SIGNATURE_INVALID";
   affected_nodes: string[];
   current_value?: number;
   expected_range?: [number, number];
-  evidence_signature?: string;   // tx signature proving the anomaly
+  evidence_signature?: string;
   recommended_action: string;
   timestamp_utc: string;
 }
 ```
 
-### 3. Coverage Drift Signal → Observability + Incident Response
-
-Fired when network coverage KPIs drop below SLO thresholds.
+### DEPIN_COVERAGE_DRIFT → Observability + Incident Response
 
 ```typescript
-export interface CoverageDriftSignal {
+export interface DepinCoverageDriftSignal {
   signal: "DEPIN_COVERAGE_DRIFT";
   source_skill: "solana-depin-builder-skill";
   severity: "P1" | "P2";
   network_id: string;
   drift_type:
-    | "HEXAGON_VACANCY"          // H3 cells previously covered now empty
-    | "UPTIME_SLO_BREACH"        // overall network uptime below SLO
-    | "GEOGRAPHIC_CONCENTRATION" // >30% of nodes in single metro area
-    | "OPERATOR_CHURN_SPIKE";    // unusual node deregistration rate
+    | "HEXAGON_VACANCY"
+    | "UPTIME_SLO_BREACH"
+    | "GEOGRAPHIC_CONCENTRATION"
+    | "OPERATOR_CHURN_SPIKE";
   affected_hexagons?: string[];
   churn_rate_pct?: number;
   current_coverage_pct?: number;
@@ -102,47 +102,43 @@ export interface CoverageDriftSignal {
 }
 ```
 
-### 4. TGE Readiness Signal → Token Launch Skill
-
-Emitted when DePIN network crosses readiness thresholds for token generation event.
+### DEPIN_TGE_READY → Token Launch Skill
 
 ```typescript
-export interface TGEReadinessSignal {
+export interface DepinTgeReadySignal {
   signal: "DEPIN_TGE_READY";
   source_skill: "solana-depin-builder-skill";
   network_id: string;
-  readiness_score: number;       // 0-100
+  readiness_score: number;       // 0–100
   gates: {
-    min_nodes_met: boolean;       // e.g., ≥1,000 active nodes
-    geographic_distribution_met: boolean; // nodes in ≥3 regions
-    oracle_stability_met: boolean;        // 30-day oracle uptime ≥99%
-    demand_side_revenue_met: boolean;     // ≥$10K/month protocol revenue
-    security_audit_complete: boolean;     // program audit passed
-    emission_schedule_locked: boolean;    // cannot be changed post-TGE
+    min_nodes_met: boolean;
+    geographic_distribution_met: boolean;
+    oracle_stability_met: boolean;
+    demand_side_revenue_met: boolean;
+    security_audit_complete: boolean;
+    emission_schedule_locked: boolean;
   };
-  blocking_items: string[];      // items that must be resolved before TGE
+  blocking_items: string[];
   recommended_launch_window: string;
   handoff_to: "solana-token-launch-skill";
   timestamp_utc: string;
 }
 ```
 
-### 5. Rogue Node Signal → Incident Response
-
-Most critical signal — fired when Sybil or exploit pattern detected.
+### DEPIN_ROGUE_NODE → Incident Response (highest DePIN priority)
 
 ```typescript
-export interface RogueNodeSignal {
+export interface DepinRogueNodeSignal {
   signal: "DEPIN_ROGUE_NODE";
   source_skill: "solana-depin-builder-skill";
   severity: "P0" | "P1";
   network_id: string;
   rogue_type:
-    | "SYBIL_CLUSTER"            // multiple nodes from same physical location
-    | "REWARD_DRAIN"             // unusual reward claiming rate
-    | "FAKE_COVERAGE"            // claimed H3 hex is physically impossible
-    | "ORACLE_POISONING"         // submitting falsified oracle data
-    | "COORDINATED_ATTACK";      // multiple accounts coordinating exploit
+    | "SYBIL_CLUSTER"
+    | "REWARD_DRAIN"
+    | "FAKE_COVERAGE"
+    | "ORACLE_POISONING"
+    | "COORDINATED_ATTACK";
   suspected_nodes: string[];
   operator_address?: string;
   evidence: {
@@ -159,42 +155,74 @@ export interface RogueNodeSignal {
 }
 ```
 
+### DEPIN_NETWORK_MILESTONE → Observability
+
+```typescript
+export interface DepinNetworkMilestoneSignal {
+  signal: "DEPIN_NETWORK_MILESTONE";
+  source_skill: "solana-depin-builder-skill";
+  network_id: string;
+  milestone_type: "nodes" | "stake" | "epochs" | "coverage" | "revenue";
+  milestone_value: number;
+  previous_milestone: number;
+  achievement_date: string;
+  next_target: number;
+  timestamp_utc: string;
+}
+```
+
+### DEPIN_OPERATOR_ALERT → Operator UX / Dashboard
+
+```typescript
+export interface DepinOperatorAlertSignal {
+  signal: "DEPIN_OPERATOR_ALERT";
+  source_skill: "solana-depin-builder-skill";
+  operator_address: string;
+  node_ids: string[];
+  alert_type: "earnings_drop" | "node_offline" | "stake_risk" | "firmware_update" | "session_key_expiring";
+  severity: "critical" | "warning" | "info";
+  message: string;
+  suggested_action: string;
+  action_deadline?: string;
+  timestamp_utc: string;
+}
+```
+
 ---
 
-## Signal Routing Rules
+## Part 2 — Signal Routing Rules
 
-| Signal | Primary Target | Secondary Target | Response Time |
-|--------|---------------|-----------------|---------------|
-| `DEPIN_NODE_HEALTH` | Observability (metrics) | UX (operator dashboard) | Async / epoch |
-| `DEPIN_ORACLE_ANOMALY` | Incident Response | Observability (alert) | P0: Immediate, P1: 15min |
-| `DEPIN_COVERAGE_DRIFT` | Observability | Internal (growth team) | 1 hour |
-| `DEPIN_TGE_READY` | Token Launch | Internal (founders) | Next planning cycle |
-| `DEPIN_ROGUE_NODE` | Incident Response | Network authority (multisig) | P0: Immediate |
+| Signal | Primary Target | Secondary Target | Response SLA |
+|--------|---------------|-----------------|--------------|
+| `DEPIN_NODE_HEALTH` | Observability (metrics) | UX dashboard | Async / per epoch |
+| `DEPIN_ORACLE_ANOMALY` | Incident Response | Observability (alert) | P0: immediate / P1: 15 min |
+| `DEPIN_COVERAGE_DRIFT` | Observability | Growth team (internal) | 1 hour |
+| `DEPIN_TGE_READY` | Token Launch | Founders (Discord) | Next planning cycle |
+| `DEPIN_ROGUE_NODE` | Incident Response | Multisig authority | P0: immediate |
+| `DEPIN_NETWORK_MILESTONE` | Observability | Marketing (Discord) | Async |
+| `DEPIN_OPERATOR_ALERT` | Operator dashboard | Push notification | 5 min |
 
 ---
 
-## Inbound Signal Handlers
+## Part 3 — Inbound Signal Handlers
 
 ### From Incident Response → DePIN (pause rewards)
 
 ```typescript
 // When incident-response-skill confirms an active exploit:
-export interface IncidentPauseSignal {
-  signal: "OBS_ANOMALY_TO_INCIDENT";      // from incident-response-skill
+export interface IncidentPauseInbound {
+  signal: "OBS_ANOMALY_TO_INCIDENT";
   action_required: "PAUSE_DEPIN_REWARDS";
   program_id: string;
   incident_id: string;
 }
-
-// DePIN response: call pause() on your Anchor reward-distribution program
-// This must be wired to your network_authority multisig
-// Load skill/incident-response-integration.md for full procedure
+// → call pause() on Anchor reward-distribution program
+// → Load skill/incident-response-integration.md for full procedure
 ```
 
 ### From Observability → DePIN (anomaly trigger)
 
 ```typescript
-// When observability-skill detects oracle deviation:
 export interface ObsAnomalyInbound {
   signal: "OBS_ANOMALY_TO_INCIDENT";
   source_skill: "Solana-observabilty-skill";
@@ -203,26 +231,56 @@ export interface ObsAnomalyInbound {
 }
 ```
 
+### From Token Launch → DePIN (post-TGE)
+
+```typescript
+export interface TokenLaunchCompleteInbound {
+  signal: "TGE_LAUNCHED";
+  source_skill: "solana-token-launch-skill";
+  token_mint: string;
+  launch_price_usd: number;
+  vesting_unlock_schedule: Array<{
+    date_utc: string;
+    amount: bigint;
+    allocation_type: "team" | "investors" | "ecosystem" | "treasury";
+  }>;
+  // → adjust emission parameters for post-TGE reward schedule
+  // → Load skill/depin-token-launch.md for unlock coordination
+}
+```
+
 ---
 
-## Emission of Signals — Implementation Pattern
+## Part 4 — Emit Function (Production)
 
 ```typescript
 // src/signals/emit.ts
-// Standardized signal emission — add to your epoch crank or webhook handler
+export type DepinSignal =
+  | DepinNodeHealthSignal
+  | DepinOracleAnomalySignal
+  | DepinCoverageDriftSignal
+  | DepinTgeReadySignal
+  | DepinRogueNodeSignal
+  | DepinNetworkMilestoneSignal
+  | DepinOperatorAlertSignal;
 
-export async function emitDePINSignal(
-  signal: NodeHealthSignal | OracleAnomalySignal | CoverageDriftSignal | TGEReadinessSignal | RogueNodeSignal,
+export async function emitDepinSignal(
+  signal: DepinSignal,
   config: {
     observabilityWebhook?: string;
     incidentWebhook?: string;
+    tokenLaunchWebhook?: string;
+    operatorWebhook?: string;
     discordOpsChannel?: string;
   }
 ): Promise<void> {
   const payload = JSON.stringify(signal);
 
-  // Route by signal type
-  if (signal.signal === "DEPIN_ROGUE_NODE" || signal.signal === "DEPIN_ORACLE_ANOMALY") {
+  // P0/P1 → Incident Response + Discord ops ping
+  if (
+    signal.signal === "DEPIN_ROGUE_NODE" ||
+    signal.signal === "DEPIN_ORACLE_ANOMALY"
+  ) {
     if (config.incidentWebhook) {
       await fetch(config.incidentWebhook, {
         method: "POST",
@@ -230,19 +288,24 @@ export async function emitDePINSignal(
         body: payload,
       }).catch((err) => console.error("[signals] Incident webhook failed:", err));
     }
-    // Always alert Discord ops for P0/P1
-    if (config.discordOpsChannel && (signal.severity === "P0" || signal.severity === "P1")) {
+    const sev = (signal as any).severity;
+    if (config.discordOpsChannel && (sev === "P0" || sev === "P1")) {
       await fetch(config.discordOpsChannel, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          content: `🚨 **${signal.signal}** — Severity: **${signal.severity}**\n\`${signal.network_id}\`\n${JSON.stringify(signal, null, 2).slice(0, 1000)}`,
+          content: `🚨 **${signal.signal}** — Severity: **${sev}**\n\`${(signal as any).network_id}\`\n${payload.slice(0, 1000)}`,
         }),
       }).catch(() => {});
     }
   }
 
-  if (signal.signal === "DEPIN_NODE_HEALTH" || signal.signal === "DEPIN_COVERAGE_DRIFT") {
+  // Observability → metrics pipeline
+  if (
+    signal.signal === "DEPIN_NODE_HEALTH" ||
+    signal.signal === "DEPIN_COVERAGE_DRIFT" ||
+    signal.signal === "DEPIN_NETWORK_MILESTONE"
+  ) {
     if (config.observabilityWebhook) {
       await fetch(config.observabilityWebhook, {
         method: "POST",
@@ -252,19 +315,34 @@ export async function emitDePINSignal(
     }
   }
 
+  // TGE readiness → Token Launch handoff
   if (signal.signal === "DEPIN_TGE_READY") {
-    // Log to console — manual handoff to Token Launch skill
-    console.log("[signals] TGE READINESS GATE PASSED:");
-    console.log(payload);
-    // Send to Discord for founder review
+    if (config.tokenLaunchWebhook) {
+      await fetch(config.tokenLaunchWebhook, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: payload,
+      }).catch((err) => console.error("[signals] Token Launch webhook failed:", err));
+    }
     if (config.discordOpsChannel) {
       await fetch(config.discordOpsChannel, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          content: `🚀 **TGE READINESS GATE** — Score: **${(signal as TGEReadinessSignal).readiness_score}/100**\nLoad \`solana-token-launch-skill\` to proceed.\n${payload.slice(0, 800)}`,
+          content: `🚀 **TGE READINESS GATE** — Score: **${(signal as DepinTgeReadySignal).readiness_score}/100**\nLoad \`solana-token-launch-skill\` to proceed.\n${payload.slice(0, 800)}`,
         }),
       }).catch(() => {});
+    }
+  }
+
+  // Operator alerts → push notification / dashboard
+  if (signal.signal === "DEPIN_OPERATOR_ALERT") {
+    if (config.operatorWebhook) {
+      await fetch(config.operatorWebhook, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: payload,
+      }).catch((err) => console.error("[signals] Operator webhook failed:", err));
     }
   }
 }
@@ -272,16 +350,44 @@ export async function emitDePINSignal(
 
 ---
 
-## Wallet-Specific Signals (Added v2 — Wallet Engineering Framework)
+## Part 5 — Signal Flow Diagram
 
-These signals extend the base ecosystem signals for the full wallet development lifecycle.
-All five skills must handle these signals. See `wallet-framework.md` for complete routing.
+```mermaid
+graph LR
+  subgraph DePIN Skill
+    DS[DePIN Builder]
+  end
 
-### WALLET_KEY_COMPROMISED (P0 — Highest Priority)
+  subgraph Other Skills
+    IR[Incident Response]
+    OBS[Observability]
+    TL[Token Launch]
+    UX[Operator UX]
+  end
+
+  DS -->|DEPIN_ROGUE_NODE P0| IR
+  DS -->|DEPIN_ORACLE_ANOMALY| IR
+  DS -->|DEPIN_NODE_HEALTH| OBS
+  DS -->|DEPIN_COVERAGE_DRIFT| OBS
+  DS -->|DEPIN_NETWORK_MILESTONE| OBS
+  DS -->|DEPIN_TGE_READY| TL
+  DS -->|DEPIN_OPERATOR_ALERT| UX
+
+  IR -->|OBS_ANOMALY_TO_INCIDENT pause_rewards| DS
+  OBS -->|OBS_ANOMALY_TO_INCIDENT oracle_anomaly| DS
+  TL -->|TGE_LAUNCHED post-tge unlock| DS
+```
+
+---
+
+## Part 6 — Wallet-Specific Signals
+
+These signals extend the base protocol for the wallet engineering framework.
+All five skills must handle these. See `wallet-framework.md` for full routing.
+
+### WALLET_KEY_COMPROMISED (P0)
 
 ```typescript
-// Fire: Incident Response skill (when key compromise confirmed or suspected)
-// Receive: ALL skills
 export interface WalletKeyCompromisedSignal {
   signal: "WALLET_KEY_COMPROMISED";
   severity: "P0";
@@ -291,31 +397,12 @@ export interface WalletKeyCompromisedSignal {
   detected_at_utc: string;
 }
 // → Load: skill/active-exploit-response.md immediately
-// → Load: skill/wallet-security.md → Emergency Key Rotation Checklist
-// → Notify all team members within 2 minutes
-```
-
-### WALLET_DRAINER_ACTIVE (P1)
-
-```typescript
-// Fire: UX skill (intent analyzer blocked a drainer transaction)
-// Receive: Incident Response, Observability
-export interface WalletDrainerActiveSignal {
-  signal: "WALLET_DRAINER_ACTIVE";
-  severity: "P1";
-  drainer_pattern: "set_authority" | "delegate_approve" | "versioned_alt" | "unknown";
-  blocks_in_window: number;
-  window_minutes: number;
-}
-// → Load: skill/wallet-security.md → Drainer Contract Deep Analysis
-// → Consider frontend takedown if blocks_in_window > 50
+// → DePIN: pause reward distribution if crank or treasury key
 ```
 
 ### WALLET_FEE_PAYER_CRITICAL (P1)
 
 ```typescript
-// Fire: Observability skill
-// Receive: UX skill (degrade gasless), DePIN (pause proof submission)
 export interface WalletFeePayerCriticalSignal {
   signal: "WALLET_FEE_PAYER_CRITICAL";
   severity: "P1";
@@ -323,36 +410,46 @@ export interface WalletFeePayerCriticalSignal {
   current_balance_sol: number;
   runway_hours: number;
 }
-// → Load: runbooks/fee-payer-low.md
-// → UX: activate graceful degradation (disable gasless, show "pay own gas" flow)
+// → DePIN: pause automated proof submission if crank fee payer
+// → Load: runbooks/fee-payer-low.md (Observability skill)
 ```
 
 ### WALLET_ADDRESS_POISONING_DETECTED (P2)
 
 ```typescript
-// Fire: UX skill
-// Receive: Incident Response (comms), Observability (tracking)
 export interface WalletAddressPoisoningSignal {
   signal: "WALLET_ADDRESS_POISONING_DETECTED";
   severity: "P2";
-  similar_to_address: string;  // The legitimate address being mimicked
-  attack_count: number;        // Number of poisoning txs seen
+  similar_to_address: string;
+  attack_count: number;
 }
-// → Load: skill/wallet-security.md → Address Poisoning Response Protocol
-// → Post user warning on all official channels
+// → Add warning to operator dashboard
+// → Load: skill/depin-wallet-security.md → Address Poisoning in DePIN Context
 ```
 
 ### WALLET_SIGNING_LATENCY_HIGH (P2)
 
 ```typescript
-// Fire: Observability skill
-// Receive: UX skill, Performance optimization
 export interface WalletSigningLatencySignal {
   signal: "WALLET_SIGNING_LATENCY_HIGH";
   severity: "P2";
   p95_latency_ms: number;
   slo_target_ms: number;
 }
-// → Load: skill/performance-optimization.md → RPC endpoint failover
-// → Check: is latency from RPC or from wallet popup rendering?
+// → Check crank submission latency vs RPC endpoint health
+// → Load: skill/performance-optimization.md (UX skill) → RPC failover
 ```
+
+---
+
+## Part 7 — Shared Vocabulary
+
+| Term | Definition |
+|------|------------|
+| `network_id` | Lowercase slug for your protocol (e.g., `"helium-mobile"`, `"hivemapper"`) |
+| `epoch` | On-chain epoch number from your `NetworkConfig.epoch_length_secs` |
+| `node_address` | The Solana pubkey of the `NodeAccount` PDA |
+| `operator_address` | The wallet pubkey that owns and funded the node account |
+| `device_pubkey` | The Ed25519 pubkey embedded in device firmware (≠ operator wallet) |
+| `h3_index` | H3 hex cell identifier at resolution 8 (standard for DePIN coverage maps) |
+| P0 / P1 / P2 | Severity: P0 = immediate (funds at risk), P1 = urgent (15 min), P2 = watch (1 hr) |

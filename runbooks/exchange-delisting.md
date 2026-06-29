@@ -1,114 +1,205 @@
 # Exchange Delisting — Incident Response Runbook
 
-## Severity: High
+**Severity:** P1
+**Response SLA:** Acknowledge in 1h, community notice in 4h
+**Owner:** Protocol lead + treasury manager + legal
 
 ## Trigger Conditions
-- Exchange announces delisting of token
-- Exchange requests delisting
-- Exchange removes liquidity
-- Exchange suspends trading
 
-## Immediate Actions (0-15 minutes)
+- Exchange sends official delisting notice (email or API notification)
+- Exchange suspends deposits/withdrawals for token
+- Token removed from exchange trading pairs without notice
+- Regulatory-driven delisting (exchange citing compliance policy)
 
-1. **Declare Incident**
-   - Alert executive team
-   - Alert treasury management team
-   - Create incident channel: `#incident-delisting`
-   - Set incident severity: High
+---
 
-2. **Assess Impact**
-   - Identify which exchange is delisting
-   - Check trading volume on that exchange
-   - Check total liquidity impact
-   - Check if other exchanges may follow
+## Immediate Actions (T+0 to T+60 min)
 
-3. **Communicate with Exchange**
-   - Contact exchange to understand reason
-   - Attempt to reverse decision if possible
-   - Negotiate timeline if delisting is inevitable
-   - Request grace period for users to withdraw
+### Step 1 — Verify and assess liquidity impact
 
-## Short-Term Actions (15-60 minutes)
+```bash
+# Check current trading volume breakdown across exchanges
+# Birdeye market overview
+curl "https://public-api.birdeye.so/defi/token_market?address=<TOKEN_MINT>" \
+  -H "X-API-KEY: $BIRDEYE_KEY" | \
+  jq '.data.markets | sort_by(.liquidity) | reverse | .[0:10] | 
+    map({exchange: .source, liquidity: .liquidity, volume24h: .volume24h})'
 
-4. **Inform Community**
-   - Announce delisting to community
-   - Provide timeline for withdrawal
-   - Provide instructions for withdrawing funds
-   - Reassure that other exchanges remain available
+# Jupiter aggregator — check if delisted exchange was a routing source
+curl "https://quote-api.jup.ag/v6/quote?inputMint=<TOKEN_MINT>&outputMint=EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v&amount=1000000000" | \
+  jq '.routePlan | .[].swapInfo | {amm: .ammKey, label: .label}'
 
-5. **Protect Liquidity**
-   - If treasury has funds on exchange: Withdraw immediately
-   - If possible: Move liquidity to other exchanges
-   - Engage market makers on other exchanges
-   - Ensure sufficient liquidity on remaining exchanges
+# Calculate % of daily volume on the delisting exchange
+TOTAL_VOLUME=$(curl "https://public-api.birdeye.so/defi/price?address=<TOKEN_MINT>" \
+  -H "X-API-KEY: $BIRDEYE_KEY" | jq '.data.v24hUSD')
+EXCHANGE_VOLUME=<GET_FROM_EXCHANGE_API>
+echo "Exchange volume share: $(python3 -c "print(f'{$EXCHANGE_VOLUME/$TOTAL_VOLUME*100:.1f}%')")"
+```
 
-6. **Assess Operator Impact**
-   - Check if operators use affected exchange for rewards
-   - If yes: Provide alternative withdrawal methods
-   - Communicate with operators about impact
-   - Ensure operators can still receive rewards
+### Step 2 — Withdraw all treasury funds from exchange
 
-## Medium-Term Actions (1-24 hours)
+```bash
+# PRIORITY: get protocol-owned funds off the exchange before trading halts
+# This must happen within the first hour regardless of anything else
 
-7. **Secure New Listings**
-   - Contact alternative exchanges
-   - Apply for listing on new exchanges
-   - Accelerate pending listing applications
-   - Consider DEX as alternative
+# Most exchanges: use API withdrawal
+curl -X POST "https://api.<EXCHANGE>.com/v3/capital/withdraw/apply" \
+  -H "X-MBX-APIKEY: $EXCHANGE_API_KEY" \
+  -d "coin=<TOKEN_SYMBOL>&address=<TREASURY_WALLET>&amount=<AMOUNT>&network=SOL"
 
-8. **Treasury Management**
-   - Review treasury distribution across exchanges
-   - Consolidate treasury on secure exchanges
-   - Consider moving treasury to cold storage
-   - Diversify exchange holdings
+# Verify withdrawal initiated:
+curl "https://api.<EXCHANGE>.com/v3/capital/withdraw/history" \
+  -H "X-MBX-APIKEY: $EXCHANGE_API_KEY" | jq '.[] | select(.coin == "<TOKEN_SYMBOL>")'
+```
 
-9. **Market Maker Engagement**
-   - Engage market makers on remaining exchanges
-   - Provide incentives for liquidity provision
-   - Ensure healthy order books
-   - Monitor spread and depth
+### Step 3 — Notify operators who may have rewards on the exchange
 
-## Long-Term Actions (1-7 days)
+```typescript
+// Identify operators who deposited to the delisting exchange recently
+// via Helius transaction history — look for transfers to exchange hot wallet
 
-10. **Root Cause Analysis**
-    - Understand why delisting occurred
-    - If compliance issue: Address immediately
-    - If volume issue: Consider marketing to increase volume
-    - If relationship issue: Repair relationship
+const EXCHANGE_HOT_WALLETS = ["<EXCHANGE_DEPOSIT_WALLET_1>", "<EXCHANGE_DEPOSIT_WALLET_2>"];
 
-11. **Rebuild Liquidity**
-    - Focus on remaining exchanges
-    - Implement liquidity mining if needed
-    - Engage community to trade on remaining exchanges
-    - Consider automated market maker (AMM) strategies
+async function findOperatorsOnExchange(tokenMint: string): Promise<string[]> {
+  const response = await fetch(
+    `https://api.helius.xyz/v0/addresses/${tokenMint}/transactions?api-key=${process.env.HELIUS_KEY}&type=TRANSFER&limit=200`
+  );
+  const txs = await response.json();
 
-12. **Diversification Strategy**
-    - Reduce reliance on single exchange
-    - Target multiple exchange listings
-    - Increase DEX presence
-    - Implement cross-chain liquidity
+  const affected = txs
+    .filter((tx: any) =>
+      EXCHANGE_HOT_WALLETS.includes(tx.tokenTransfers?.[0]?.toUserAccount)
+    )
+    .map((tx: any) => tx.feePayer);
+
+  return [...new Set(affected)] as string[];
+}
+// DM affected operators directly via Discord
+```
+
+---
+
+## Short-Term Actions (T+1h to T+6h)
+
+### Step 4 — Community announcement
+
+```
+📢 IMPORTANT: [EXCHANGE_NAME] TOKEN UPDATE
+
+[EXCHANGE] has informed us they will be delisting [TOKEN] on [DATE].
+
+What this means for you:
+• Withdraw your [TOKEN] from [EXCHANGE] before [DEADLINE]
+• Trading will continue on: [LIST_REMAINING_EXCHANGES]
+• DEX trading unaffected: [JUPITER_LINK]
+
+How to withdraw:
+1. Go to [EXCHANGE] → Wallet → [TOKEN]
+2. Withdraw to your Solana wallet
+3. Your tokens will arrive within [TIMEFRAME]
+
+The network continues to operate normally. Node rewards are unaffected.
+
+Questions: #support
+```
+
+### Step 5 — Boost DEX liquidity to absorb exchange exit flow
+
+```bash
+# LP pool depth often insufficient when CEX users flood to DEX
+# Treasury action: seed additional liquidity on Meteora DLMM / Orca
+
+# Meteora DLMM — add concentrated liquidity around current price
+# Install: npm install @meteora-ag/dlmm
+npx ts-node << 'TSEOF'
+import DLMM from "@meteora-ag/dlmm";
+import { Connection, PublicKey } from "@solana/web3.js";
+
+const connection = new Connection(process.env.RPC_URL!);
+const dlmmPool = await DLMM.create(connection, new PublicKey("<POOL_ADDRESS>"));
+// Add ±20% range liquidity to absorb expected selling pressure
+TSEOF
+
+# Target: minimum $200K liquidity depth at ±5% price range
+# during the withdrawal window
+```
+
+### Step 6 — Accelerate alternative exchange listings
+
+```bash
+# Check status of pending listing applications
+# Standard listing package needed immediately:
+# - Token audit report
+# - Technical integration docs (Solana deposit/withdrawal)
+# - Trading volume history (last 90 days)
+# - Project deck + tokenomics
+
+# Tier priorities (apply to all simultaneously):
+# Tier 1: Bybit, OKX, Gate.io — 2-4 week turnaround
+# Tier 2: MEXC, Bitget, HTX — 1-2 week turnaround (often easier)
+# Tier 3: KuCoin, Phemex — 3-6 week turnaround
+# Immediate fallback: ensure Jupiter aggregation is live (it likely already is)
+```
+
+---
+
+## Medium-Term Actions (T+6h to T+7 days)
+
+### Step 7 — Root cause and prevention
+
+```
+REGULATORY (most common):
+  → Review token's legal structure with counsel
+  → If US exchange: check Howey test compliance for utility token claim
+  → Consider migrating primary listing to non-US exchanges
+  → Load: skill/legal-compliance.md for jurisdiction analysis
+
+VOLUME (exchange minimum not met):
+  → Market-making was insufficient
+  → Negotiate volume-based SLA with MM firm
+  → Consider community trading incentive programs
+
+TECHNICAL (Solana integration issue):
+  → Usually fixable — contact exchange tech team directly
+  → Provide updated Solana integration docs
+```
+
+---
+
+## CLI Quick-Reference Card
+
+```bash
+# PASTE INTO #incident-delisting
+
+EXCHANGE:        
+DELISTING DATE:  
+WITHDRAW BY:     
+VOLUME IMPACT:   % of daily volume
+TREASURY ON EXCHANGE: SOL/USDC amount
+
+# Check token balance on exchange:
+# (use exchange API or check exchange deposit address on-chain)
+solana balance <EXCHANGE_DEPOSIT_ADDRESS>
+
+# Boost DEX liquidity:
+# src/incident/boost-lp.ts  ← implement before any incident
+
+# Remaining exchange list:
+# [UPDATE THIS LIST]
+```
+
+---
 
 ## Recovery Indicators
 
-- Liquidity restored on other exchanges
-- Trading volume returns to normal
-- Community confidence restored
-- New exchange listings secured
-- No further delistings
+- [ ] All treasury funds withdrawn before trading halt
+- [ ] Community notified within 4h of learning about delisting
+- [ ] DEX liquidity boosted >$200K depth at ±5%
+- [ ] At least one alternative listing application submitted within 48h
+- [ ] Operators who had funds on exchange confirmed safe
+- [ ] No significant node churn (operators still profitable on remaining venues)
 
-## Escalation
+## Cross-Skill Signals
 
-If multiple exchanges delist or liquidity completely dries up:
-- Consider protocol migration
-- Consider chain migration
-- Consider token migration
-- Prepare for potential shutdown
-
-## Prevention
-
-- Maintain listings on multiple exchanges
-- Maintain DEX presence
-- Regularly engage with exchange teams
-- Monitor exchange relationships
-- Maintain healthy trading volume
-- Diversify liquidity across venues
+If price crashes >30% as a result: also run `runbooks/token-price-crash.md`.
+If operator economics break: fire `DEPIN_OPERATOR_ALERT` (severity: warning) to dashboard.

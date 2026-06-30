@@ -135,6 +135,109 @@ Geographic unit: Country/ASN for proxy diversity
 Oracle: Centralized traffic router (pragmatic for v1)
 ```
 
+### Pattern F: Lidar/Drive Mapping (Hivemapper-style — geographic proof of coverage)
+Best for: Street-level mapping, dashcam networks, lidar survey grids
+
+```
+How it works:
+- Dashcam / lidar device records GPS-timestamped footage during a drive
+- Footage is uploaded to an off-chain AI validator (quality + duplicate check)
+- Validator issues a signed "map contribution" attestation for each verified segment
+- Contribution earns coverage credit proportional to the H3 cells covered
+- High-demand cells (recently stale or never mapped) earn a coverage multiplier
+
+Proof mechanism: AI/ML image quality + GPS track cross-validation → signed attestation
+Geographic unit: H3 hexagons res 10–12 (street-level, ~2m–75m cell diameter)
+Oracle: Centralised AI validator initially → decentralise to multi-validator quorum
+Anti-gaming: GPS spoofing detection via accelerometer cross-check + timestamp gaps
+
+Key distinction from Pattern A (connectivity):
+- Pattern A proves a signal EXISTS at a location (beacon/witness)
+- Pattern F proves a DRIVE OCCURRED along a route (footage + GPS track)
+- No peer witness — proof is unilateral; oracle bears full validation responsibility
+- Cell freshness matters: re-mapping a stale cell > duplicate mapping a fresh cell
+```
+
+```typescript
+// Mapping-specific on-chain account
+#[account]
+pub struct MapContribution {
+    pub operator: Pubkey,
+    pub device_pubkey: Pubkey,
+    pub drive_start_unix: i64,
+    pub drive_end_unix: i64,
+    pub cells_covered: u32,            // distinct H3 res-11 hexagons
+    pub stale_cells: u32,              // cells not updated in >30 days (bonus tier)
+    pub validator_signature: [u8; 64], // AI validator's Ed25519 signature
+    pub footage_cid: [u8; 46],         // IPFS CID of raw footage (stored off-chain)
+    pub credits_earned: u64,
+    pub slot: u64,
+    pub bump: u8,
+}
+
+// Anti-sybil: reject if drive_end - drive_start < cells_covered * 3 seconds
+// (cannot drive >1 cell/3s — catches GPS teleportation attacks)
+fn validate_drive_timing(start: i64, end: i64, cells: u32) -> bool {
+    (end - start) >= (cells as i64 * 3)
+}
+```
+
+### Pattern G: Proof-of-Generation / Energy (Powerledger-style)
+Best for: Solar arrays, battery storage, demand-response devices, EV charging
+
+```
+How it works:
+- Smart meter / inverter signs energy readings every 15-minute interval
+- Off-chain oracle cross-validates reading against irradiance data (PVGIS/NREL)
+  and optionally against the grid operator's metering API
+- Validated kWh → energy credits minted to operator wallet
+- Credits are tradeable P2P or redeemable for protocol tokens
+- Demand-response variant: grid operator signals load reduction
+  → nodes that reduce load earn a bonus multiplier
+
+Proof mechanism: Smart meter signature + irradiance cross-check + GPS anti-duplicate
+Geographic unit: GPS coordinates (no H3 needed — energy is point-source)
+Oracle: Meter certificate registry + PVGIS irradiance API + optional grid operator API
+Anti-gaming: nameplate capacity cap, irradiance correlation check, GPS duplicate detection
+
+Key distinction from all other patterns:
+- Energy is the only pattern with direct regulatory exposure in every jurisdiction
+- Proof is continuous (every 15 min), not event-driven
+- Grid operator API integration is mandatory before mainnet — not optional
+- Never promise fiat returns on generation; energy credits ≠ investment contract
+```
+
+```typescript
+// Energy-specific on-chain account
+#[account]
+pub struct EnergyNode {
+    pub operator: Pubkey,
+    pub meter_serial_hash: [u8; 32],  // SHA256 of serial (privacy)
+    pub device_pubkey: Pubkey,        // oracle's verified device pubkey
+    pub gps_lat_e6: i32,              // latitude * 1e6
+    pub gps_lon_e6: i32,
+    pub capacity_watts: u32,          // nameplate — proof ceiling
+    pub total_kwh_verified: u64,      // lifetime verified generation
+    pub credits_earned_total: u64,
+    pub last_reading_slot: u64,
+    pub is_active: bool,
+    pub bump: u8,
+}
+
+// Rate limit: reject if current_slot < last_reading_slot + 900_slots
+// (~15 min at 1 slot/sec) — enforces ISO 50001 metering interval
+fn validate_reading_interval(last_slot: u64, current_slot: u64) -> bool {
+    current_slot >= last_slot + 900
+}
+
+// Anti-fraud: reading_kw must not exceed nameplate * 1.05
+fn validate_against_nameplate(reading_kw: f64, nameplate_kw: f64) -> bool {
+    reading_kw <= nameplate_kw * 1.05
+}
+```
+
+
+
 ## Step 3 — Solana program architecture
 
 ### Core accounts (every DePIN network needs these)
@@ -290,7 +393,7 @@ Level 5 — Centralized oracle (pragmatic v1)         [LOWEST TRUST]
 ## Architecture checklist
 
 Before writing any code:
-- [ ] DePIN category identified (connectivity/compute/sensor/mapping/bandwidth/storage)
+- [ ] DePIN category identified (connectivity/compute/sensor/mapping/bandwidth/storage/energy)
 - [ ] Proof mechanism defined and anti-gaming analysis done
 - [ ] Oracle trust level chosen with rationale
 - [ ] Stake requirement calculated (economic deterrence for fake nodes)

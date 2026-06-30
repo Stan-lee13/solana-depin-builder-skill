@@ -63,6 +63,7 @@ Load only what the task requires. Never load everything at once.
 | Exchange delisting notice received | `runbooks/exchange-delisting.md` |
 | Regulatory enforcement / cease-and-desist | `runbooks/regulatory-enforcement.md` |
 | Coverage drift / node churn spike | `runbooks/coverage-drift.md` |
+| First-node operator setup (step-by-step) | `runbooks/operator-onboarding.md` |
 
 ### Cross-skill signals & integration
 
@@ -91,7 +92,7 @@ SENSOR / DATA    Weather, air quality, GPS corrections, traffic
                  Load: oracle-integration.md + data-marketplace.md + hardware-integration.md
 
 MAPPING          Dashcams, lidar, satellite imagery
-                 Pattern: Hivemapper → geographic hexagons + contribution NFTs
+                 Pattern F: Hivemapper → lidar/dashcam drive coverage, GPS anti-spoof, H3 freshness multiplier
                  Load: coverage-verification.md + data-marketplace.md + hardware-integration.md
 
 BANDWIDTH        Residential proxies, CDN, VPN
@@ -103,7 +104,7 @@ STORAGE          Distributed file storage, archival, CDN
                  Load: skill/storage.md + oracle-integration.md + reward-system.md
 
 ENERGY           Solar generation, demand response, grid balancing
-                 Pattern: Powerledger → meter attestation + peer-to-peer settlement
+                 Pattern G: Powerledger → meter attestation + irradiance cross-check + peer-to-peer settlement
                  Load: oracle-integration.md + reward-system.md + hardware-integration.md
 ```
 

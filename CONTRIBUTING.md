@@ -39,7 +39,8 @@ Every code example must:
 
 ```
 skill/         → Sub-skill files loaded progressively
-agents/        → Agent personas (loaded by CLAUDE.md routing)
+agents/        → Agent personas (5 total: depin-architect, reward-engineer, hardware-engineer,
+                    operator-ux-engineer, tech-docs-writer)
 commands/      → /command implementations
 rules/         → Always-on rules (auto-loaded)
 runbooks/      → Incident response procedures

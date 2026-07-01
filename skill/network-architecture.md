@@ -135,8 +135,28 @@ Geographic unit: Country/ASN for proxy diversity
 Oracle: Centralized traffic router (pragmatic for v1)
 ```
 
-### Pattern F: Lidar/Drive Mapping (Hivemapper-style — geographic proof of coverage)
-Best for: Street-level mapping, dashcam networks, lidar survey grids
+### Pattern F: Proof-of-Storage (Distributed storage networks)
+Best for: Decentralised file storage, archival, CDN
+
+```
+How it works:
+- Storage providers commit capacity on-chain (stake-weighted)
+- Verifier issues random byte-range challenges every epoch
+- Provider returns Merkle proof for the challenged range → proves data is held
+- Rewards proportional to: verified capacity × challenge pass rate × uptime
+
+Proof mechanism: Merkle inclusion proof for challenged data range
+Geographic unit: None — capacity-based, not geographic
+Oracle: On-chain VRF issues challenge; provider responds off-chain; oracle submits result
+Anti-gaming: Random challenges prevent pre-computation; erasure-coded shards prevent deletion
+```
+
+Full implementation: `skill/storage.md`
+
+---
+
+### Pattern D — Sub-variant: Lidar/Drive Mapping (Hivemapper-style)
+*(Lidar/dashcam mapping is a specialised form of Pattern D — the same category)*
 
 ```
 How it works:
@@ -153,34 +173,11 @@ Anti-gaming: GPS spoofing detection via accelerometer cross-check + timestamp ga
 
 Key distinction from Pattern A (connectivity):
 - Pattern A proves a signal EXISTS at a location (beacon/witness)
-- Pattern F proves a DRIVE OCCURRED along a route (footage + GPS track)
+- Pattern D (Lidar) proves a DRIVE OCCURRED along a route (footage + GPS track)
 - No peer witness — proof is unilateral; oracle bears full validation responsibility
 - Cell freshness matters: re-mapping a stale cell > duplicate mapping a fresh cell
 ```
 
-```typescript
-// Mapping-specific on-chain account
-#[account]
-pub struct MapContribution {
-    pub operator: Pubkey,
-    pub device_pubkey: Pubkey,
-    pub drive_start_unix: i64,
-    pub drive_end_unix: i64,
-    pub cells_covered: u32,            // distinct H3 res-11 hexagons
-    pub stale_cells: u32,              // cells not updated in >30 days (bonus tier)
-    pub validator_signature: [u8; 64], // AI validator's Ed25519 signature
-    pub footage_cid: [u8; 46],         // IPFS CID of raw footage (stored off-chain)
-    pub credits_earned: u64,
-    pub slot: u64,
-    pub bump: u8,
-}
-
-// Anti-sybil: reject if drive_end - drive_start < cells_covered * 3 seconds
-// (cannot drive >1 cell/3s — catches GPS teleportation attacks)
-fn validate_drive_timing(start: i64, end: i64, cells: u32) -> bool {
-    (end - start) >= (cells as i64 * 3)
-}
-```
 
 ### Pattern G: Proof-of-Generation / Energy (Powerledger-style)
 Best for: Solar arrays, battery storage, demand-response devices, EV charging

@@ -21,7 +21,7 @@ THE CORE INSIGHT:
 
 ---
 
-## The Five DePIN Categories
+## The Seven DePIN Categories
 
 ### Pattern A — Connectivity (WiFi, 5G, LoRa, Bluetooth)
 **Deploy radio hardware to provide coverage.**
@@ -109,6 +109,61 @@ THE CORE INSIGHT:
 - GDPR and data privacy laws vary by jurisdiction — operators may face legal risk
 
 ---
+
+
+---
+
+### Pattern F — Storage (Distributed Files, Archival, CDN)
+**Deploy storage capacity and prove you are reliably serving data.**
+
+| Protocol | Network | Revenue model | Proof mechanism |
+|----------|---------|---------------|-----------------|
+| Filecoin | General storage | Storage deals | Proof-of-Replication + Proof-of-Spacetime |
+| Arweave | Permanent storage | One-time payment | SPoRA (Successive Proofs of Random Access) |
+| Walrus (Sui) | Blob storage | Storage subscriptions | Encoded shard availability proofs |
+| KYVE | Data archiving | Curation rewards | Data availability + hash verification |
+
+**Key design constraints:**
+- Storage proof must verify that data is actually stored AND retrievable — not just committed
+- Challenge-response: verifier picks random byte offset → node returns merkle proof for that range
+- Erasure coding: store 3× redundant shards so any 1-of-3 can reconstruct the original
+- On-chain: only store commitments (root hash + metadata), never raw data
+- Pricing: cost per GB-epoch, not one-time — storage is ongoing
+- Churn: nodes leaving takes stored data with them — redundancy factor is the key economic lever
+
+**Solana-specific implementation:**
+- Store Merkle root + shard assignments on-chain (small, cheap)
+- Issue random challenges on-chain via VRF every epoch
+- Nodes respond off-chain to Switchboard oracle, which pushes result on-chain
+- Rewards proportional to: storage capacity × uptime × challenge pass rate
+- Load `skill/storage.md` for full proof-of-storage architecture
+
+---
+
+### Pattern G — Energy (Solar, Grid Balancing, Demand Response)
+**Deploy energy hardware and prove you generated or balanced real power.**
+
+| Protocol | Network | Revenue model | Proof mechanism |
+|----------|---------|---------------|-----------------|
+| Powerledger | Solar P2P trading | Per-kWh traded | Smart meter attestation |
+| Glow | Solar generation | Token rewards | Inverter API + satellite irradiance |
+| Arkreen | Green energy data | Data monetization | IoT device + energy meter |
+| React | Demand response | Balancing payments | Grid operator API signals |
+
+**Key design constraints:**
+- Energy proof is the hardest to fake: requires hardware integration with smart meters or inverters
+- Data sources: inverter API (SolarEdge, Enphase, Fronius), smart meter pulse output, CAN bus
+- Cross-verification: satellite irradiance data (NASA POWER API) validates solar claims by geography
+- Regulatory: energy trading is regulated — peer-to-peer settlement requires jurisdiction review
+- Settlement: energy is time-sensitive (real-time grid balance) — on-chain settlement must be fast
+- H3 grid is less relevant — energy is grid-topology based (substations, feeders), not hex geometry
+
+**Solana-specific implementation:**
+- Device signs reading: `{ timestamp, kwh_generated, device_id, meter_serial }` with SE key
+- Oracle cross-checks signed reading against satellite irradiance for that GPS location + timestamp
+- If irradiance supports the claimed generation: oracle submits verified reading on-chain
+- Token rewards: proportional to verified kWh × (demand_response_bonus if active)
+- Load `skill/oracle-integration.md` + `skill/reward-system.md` + `skill/hardware-integration.md`
 
 ## Why Solana for DePIN
 

@@ -15,11 +15,11 @@ Each has different security requirements, threat vectors, and lifecycle operatio
 
 | Wallet Type | Owner | Security Tier | Primary Skill File |
 |---|---|---|---|
-| Protocol upgrade authority | Protocol team | Squads 3-of-5 | `skill/wallet-security.md` (IR) |
-| Mint / emission authority | Protocol team | Squads 3-of-5 | `skill/wallet-security.md` (IR) |
+| Protocol upgrade authority | Protocol team | Squads 3-of-5 | `skill/wallet-tge-security.md` (in `solana-token-launch-skill`) |
+| Mint / emission authority | Protocol team | Squads 3-of-5 | `skill/wallet-tge-security.md` (in `solana-token-launch-skill`) |
 | Epoch crank keypair | Automated (server) | AWS KMS | `skill/depin-wallet-security.md` |
 | Oracle submitter keypair | Automated (server) | AWS KMS | `skill/oracle-integration.md` |
-| Fee payer keypair | Automated (server) | Hot wallet, monitored | `skill/wallet-observability.md` |
+| Fee payer keypair | Automated (server) | Hot wallet, monitored | `skill/depin-wallet-security.md` → monitoring section |
 | Operator wallet | Node operator | Hardware recommended | `skill/depin-wallet-security.md` |
 | Device keypair | Hardware firmware | Secure element | `skill/node-registry.md` |
 | Session key | Automated (firmware) | Ephemeral | `skill/depin-wallet-security.md` |

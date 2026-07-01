@@ -9,7 +9,7 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue?style=flat-square)](LICENSE)
 [![Anchor](https://img.shields.io/badge/Anchor-v0.30+-blue?style=flat-square)](examples/anchor)
 [![Tests](https://img.shields.io/badge/Tests-17_passing-brightgreen?style=flat-square)](examples)
-[![Skills](https://img.shields.io/badge/Skill_files-22-9945FF?style=flat-square)](skill/)
+[![Skills](https://img.shields.io/badge/Skill_files-21-9945FF?style=flat-square)](skill/)
 [![Agents](https://img.shields.io/badge/Agents-5-orange?style=flat-square)](agents/)
 [![Runbooks](https://img.shields.io/badge/Runbooks-9-red?style=flat-square)](runbooks/)
 
@@ -97,7 +97,7 @@ solana-depin-builder-skill/
 ├── SECURITY.md
 ├── LICENSE                               ← MIT
 │
-├── skill/                                ← 22 skill files (21 + SKILL.md sub-router)
+├── skill/                                ← 22 files (21 skill docs + SKILL.md sub-router)
 │   ├── SKILL.md                          ← Sub-skill routing table
 │   │
 │   ├── ── Core skills ──
@@ -292,6 +292,6 @@ bash <(curl -fsSL https://raw.githubusercontent.com/Stan-lee13/solana-depin-buil
 
 MIT License · Built for the [Superteam Earn Solana AI Kit Bounty](https://earn.superteam.fun)
 
-*76 files · 570KB · 22 skill docs · 5 agents · 6 commands · 9 runbooks · 17 passing tests*
+*76 files · 587KB · 21 skill docs · 5 agents · 6 commands · 9 runbooks · 17 passing tests*
 
 </div>

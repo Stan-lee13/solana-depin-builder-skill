@@ -67,7 +67,7 @@ sequenceDiagram
 
 ---
 
-## Pattern D — Compute (io.net-style)
+## Pattern C — Compute (io.net-style)
 
 ### Architecture
 
@@ -241,7 +241,7 @@ sequenceDiagram
 
 ---
 
-## Pattern E — Storage (Arweave/Filecoin-style)
+## Pattern F — Storage (Arweave/Filecoin-style)
 
 ### Architecture
 

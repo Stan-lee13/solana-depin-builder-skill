@@ -288,8 +288,8 @@ export async function triggerTGEHandoff(
   ═══════════════════════════════════════════════════
   Next: Load solana-token-launch-skill
   Run: /tge-orchestrator with your network parameters
-  Reference: skill/listing-strategy.md for exchange approach
-  Reference: skill/legal-compliance.md for jurisdiction review
+  Reference: `commands/node-economics.md` → model liquidity runway and exchange listing cost
+  Reference: `runbooks/regulatory-enforcement.md` → jurisdiction review and legal hold procedure
   ═══════════════════════════════════════════════════
   `);
 }

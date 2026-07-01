@@ -35,13 +35,18 @@ pub mod depin_registry {
     use super::*;
 
     /// Initialize the network config (called once by protocol admin)
+    /// Initialize the DePIN network with authority and config.
+    ///
+    /// PRODUCTION: `authority` must be a Squads v4 multisig PDA — never a single EOA.
+    /// Deploy Squads: https://squads.so/
+    /// Recommended threshold: 3-of-5 signers for protocol authority actions.
     pub fn initialize(
         ctx: Context<Initialize>,
         epoch_length_secs: i64,
         min_stake_lamports: u64,
     ) -> Result<()> {
         let config = &mut ctx.accounts.network_config;
-        config.authority = ctx.accounts.authority.key();
+        config.authority = ctx.accounts.authority.key(); // MUST be Squads multisig on mainnet
         config.epoch_length_secs = epoch_length_secs;
         config.min_stake_lamports = min_stake_lamports;
         config.paused = false;
@@ -180,7 +185,7 @@ pub mod depin_registry {
         Ok(())
     }
 
-    /// Jail a node (protocol authority or governance action)
+    /// Jail a node — authority or governance action. Authority must be Squads multisig on mainnet.
     pub fn jail_node(
         ctx: Context<JailNode>,
         reason: JailReason,
@@ -200,7 +205,7 @@ pub mod depin_registry {
         Ok(())
     }
 
-    /// Emergency pause (only authority)
+    /// Emergency pause — authority only. On mainnet: authority = Squads 3-of-5 multisig (squads.so).
     pub fn set_paused(ctx: Context<SetPaused>, paused: bool) -> Result<()> {
         ctx.accounts.network_config.paused = paused;
         emit!(PauseStateChanged { paused });

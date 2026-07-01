@@ -633,3 +633,65 @@ function printCostModel() {
 
 printCostModel();
 ```
+
+---
+
+## Security Considerations
+
+1. **Always verify ZK proofs on-chain** — Never trust compressed state without on-chain proof verification. An unverified compressed account is unverified data. The Light Protocol SDK handles this automatically; do not bypass it with manual deserialization.
+
+2. **Indexer dependency is a production risk** — Compressed state depends on DAS API indexers (Helius). If the indexer goes down, reads fail. Mitigation: cache critical device state in a traditional PDA for frequently-read fields (operator, stake_lamports, is_jailed). The compressed account holds the bulk metadata.
+
+3. **Proof generation is CPU-intensive** — At 10K+ devices, off-chain proof generation requires dedicated compute. Budget for 1 proof-generation server per ~50K active devices at 1 heartbeat/hour frequency. Do not run this on your API server.
+
+4. **Never compress treasury, mint, or governance accounts** — These require instant direct reads and atomic writes. Compression overhead on high-value accounts is a security and reliability risk. Rule: if an account holds SOL/tokens or requires multisig, keep it uncompressed.
+
+5. **Compressed and uncompressed state must stay in sync** — If you maintain a hybrid registry (compressed device data + uncompressed stake escrow), ensure both are updated atomically within the same transaction or use a reconciliation service with idempotent retries.
+
+---
+
+## Hybrid Architecture (Recommended for Most DePINs)
+
+For most DePINs the optimal approach is **not** fully compressed — it is hybrid:
+
+```
+┌─────────────────────────────────────────────────────┐
+│              RECOMMENDED HYBRID LAYOUT               │
+├──────────────────────────┬──────────────────────────┤
+│  COMPRESSED (ZK)         │  UNCOMPRESSED (PDA)       │
+│  ─────────────────────── │  ─────────────────────── │
+│  Device ID               │  Network Config           │
+│  Owner pubkey            │  Protocol Treasury        │
+│  Location hash (H3)      │  Token Mint Authority     │
+│  Trust score (BPS)       │  Governance State         │
+│  Last heartbeat slot     │  Oracle Feed Account      │
+│  Cumulative rewards      │  Stake Escrow Vaults      │
+│  Firmware version        │  Emergency Pause Flag     │
+│                          │                           │
+│  Cost: ~0.000002 SOL/    │  Cost: ~0.002 SOL each    │
+│        device            │  (one per protocol account│
+│  10M devices = 20 SOL    │  not per device)          │
+└──────────────────────────┴──────────────────────────┘
+```
+
+**Migration path:** Start with PDAs (simpler). Compress device accounts at 10K nodes.
+Keep treasury, mint, oracle, and governance as PDAs indefinitely.
+
+---
+
+## When to Use ZK Compression — Decision Matrix
+
+| Factor | Uncompressed PDA | Compressed (ZK) |
+|---|---|---|
+| **Account rent cost** | 0.002 SOL (~$0.40) each | ~0.000002 SOL each — 1,000× cheaper |
+| **Read speed** | Instant (direct fetch) | Requires DAS API + indexer |
+| **Write complexity** | Standard CPI — simple | Batch + proof generation — complex |
+| **Max data per account** | 10 KB | ~512 bytes |
+| **Tooling maturity** | Fully mature | Maturing — Helius managed, stable |
+| **Best device count** | < 10,000 devices | 10,000+ devices |
+| **Best for** | Config, treasury, vaults | Device registry, reward tracking |
+| **Production readiness** | ✅ Battle-tested | ✅ Live on Helium, Hivemapper |
+
+**Rule of thumb:** If you have more than 10,000 accounts of the same type → compress them.
+If you have fewer than 10,000, or the account needs instant reads → keep as PDA.
+

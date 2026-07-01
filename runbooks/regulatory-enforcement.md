@@ -1,5 +1,7 @@
 # Regulatory Enforcement — Incident Response Runbook
 
+> **Action required:** Replace all `<PLACEHOLDER>` values with your protocol-specific addresses and contacts before filing this runbook.
+
 **Severity:** P0
 **Response SLA:** Legal counsel engaged in 1h. Zero public statements without legal approval.
 **Owner:** CEO + Legal lead (privileged)
@@ -22,7 +24,7 @@
 ### Step 1 — Secure the notice and activate legal hold
 
 ```bash
-# IMMEDIATELY: Forward the exact notice to legal@yourprotocol.com (privileged)
+# IMMEDIATELY: Forward the exact notice to security@<YOUR_PROTOCOL_DOMAIN>  # Replace with your legal/security email address (privileged)
 # DO NOT forward to Discord, Telegram, Twitter, or any public channel
 
 # Legal hold: preserve all relevant data — do not delete anything

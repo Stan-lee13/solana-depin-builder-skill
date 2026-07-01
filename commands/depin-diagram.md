@@ -95,7 +95,7 @@ graph TB
 
 ---
 
-## Pattern F — Lidar/Drive Mapping (Hivemapper-style)
+## Pattern D — Lidar/Drive Mapping Sub-variant (Hivemapper-style)
 
 ### Architecture
 

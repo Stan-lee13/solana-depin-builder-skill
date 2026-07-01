@@ -50,7 +50,7 @@ Each has different security requirements, threat vectors, and lifecycle operatio
   → Fire: WALLET_KEY_COMPROMISED signal
 
 "Monitor fee payer and crank health"
-  → Solana-observabilty-skill/skill/wallet-observability.md → Fee Payer Runway
+  → solana-observability-skill/skill/wallet-observability.md → Fee Payer Runway
 ```
 
 ---
@@ -79,3 +79,84 @@ DePIN fires and receives the canonical wallet signals from `wallet-framework.md`
 | `WALLET_FEE_PAYER_CRITICAL` | Fires to Observability when crank fee payer low | Monitor crank submissions, refill fee payer |
 | `WALLET_ADDRESS_POISONING_DETECTED` | Receives from IR when operators targeted | Add warning to operator dashboard |
 | `WALLET_SIGNING_LATENCY_HIGH` | Fires to Observability when proof submission slow | Check crank RPC endpoint health |
+
+---
+
+## Password & Key Derivation Standards
+
+**Rule: Operator wallets that use password-encrypted keystores MUST use Argon2id.**
+
+```typescript
+// Correct: Argon2id for password-protected keystore encryption
+import argon2 from "argon2";
+
+async function deriveEncryptionKey(
+  password: string,
+  salt: Buffer
+): Promise<Buffer> {
+  return argon2.hash(password, {
+    type: argon2.argon2id,
+    memoryCost: 65536,   // 64 MB memory — GPU brute-force resistant
+    timeCost: 3,          // 3 iterations
+    parallelism: 4,
+    salt,
+    hashLength: 32,
+    raw: true,
+  });
+}
+
+// WRONG — never use:
+// - bcrypt (password length limit 72 chars, GPU-attackable)
+// - PBKDF2 (no memory hardness, fast on GPU)
+// - SHA256 directly (trivially brute-forced)
+// - scrypt (acceptable but Argon2id preferred since 2023 NIST guidance)
+```
+
+---
+
+## HD Wallet Restoration — Gap Limit Discovery
+
+When restoring an operator wallet from a seed phrase, **always discover beyond the gap limit** to prevent fund loss.
+
+```typescript
+import { Keypair } from "@solana/web3.js";
+import * as bip39 from "bip39";
+import { derivePath } from "ed25519-hd-key";
+
+const GAP_LIMIT = 20;  // BIP44 standard — scan 20 empty accounts before stopping
+
+async function discoverAllFundedAccounts(
+  mnemonic: string,
+  connection: Connection
+): Promise<Keypair[]> {
+  const seed = await bip39.mnemonicToSeed(mnemonic);
+  const funded: Keypair[] = [];
+  let emptyCount = 0;
+  let index = 0;
+
+  while (emptyCount < GAP_LIMIT) {
+    const path = `m/44'/501'/${index}'/0'`;
+    const { key } = derivePath(path, seed.toString("hex"));
+    const keypair = Keypair.fromSeed(key);
+
+    const balance = await connection.getBalance(keypair.publicKey);
+
+    if (balance > 0) {
+      funded.push(keypair);
+      emptyCount = 0;  // Reset gap counter on any funded account
+    } else {
+      emptyCount++;
+    }
+
+    index++;
+  }
+
+  return funded;
+}
+
+// Why this matters for DePIN operators:
+// An operator who registered 5 nodes may have used indices 0,1,2,3,4.
+// Without gap limit discovery, restoring from seed finds only index 0
+// and the operator appears to have "lost" 4 nodes and their stake.
+```
+

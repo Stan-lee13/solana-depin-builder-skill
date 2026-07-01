@@ -1,63 +1,139 @@
-# Runbook: Coverage Drift / Network Collapse
+# Coverage Drift / Node Churn Spike — Runbook
 
-## Severity
+> **Configuration required before use:** Replace all `<PLACEHOLDER>` values with your
+> protocol-specific values.
 
-P1 if ≥20% of nodes go offline within 1 hour.
-P2 if coverage in a specific region drops below SLO (e.g., <50% of target hexes covered).
+**Severity:** P2 (P1 if > 20% of network offline)
+**Time to mitigate (target):** 24–48 hours
+**Who runs this:** Protocol Lead, Growth team
 
-## Symptoms
+---
 
-- `DEPIN_COVERAGE_DRIFT` signal fires with `HEXAGON_VACANCY` or `UPTIME_SLO_BREACH`
-- Node count dashboard shows declining active nodes over multiple epochs
-- Coverage map shows geographic holes in previously covered regions
-- Operator Discord reports hardware failure, power outage, ISP issue
-- Token price decline → operators no longer profitable → voluntary exit
+## Trigger conditions
 
-## First 5 Minutes
+- Node count drops > 10% in 24 hours
+- Geographic coverage map shows new large uncovered areas
+- Proof submission rate drops > 20% epoch-over-epoch
+- Monitoring alert: `active_node_pct < 0.80`
+- Operator churn rate > 5% per week
 
-1. Classify: is this hardware/outage (temporary) or economic (permanent)?
-   - Hardware/outage: affected nodes show `offline` status, others unchanged
-   - Economic: nodes actively de-registering, not just going offline
-2. Check: operator communication channels (Discord, Telegram) for self-reporting
-3. Check: correlation with recent token price move or reward change
+---
 
-## Response by Type
+## Step 1 — Quantify the drift (15 min)
 
+```bash
+# Query your indexer for node status changes in the last 24h
+SELECT
+  DATE_TRUNC('hour', last_heartbeat) as hour,
+  COUNT(*) FILTER (WHERE status = 'active') as active,
+  COUNT(*) FILTER (WHERE status = 'inactive') as inactive,
+  COUNT(*) as total
+FROM node_accounts
+WHERE last_heartbeat > NOW() - INTERVAL '48 hours'
+GROUP BY hour
+ORDER BY hour;
+
+# Identify affected geographic regions
+SELECT 
+  h3_to_string(geo_h3_index) as hex,
+  COUNT(*) as nodes_went_offline
+FROM node_accounts
+WHERE status = 'inactive'
+  AND updated_at > NOW() - INTERVAL '24 hours'
+GROUP BY geo_h3_index
+ORDER BY nodes_went_offline DESC
+LIMIT 20;
 ```
-HARDWARE/OUTAGE (P1 — temporary):
-  1. No reward changes needed — operators will return when hardware recovers
-  2. Alert status page: "Coverage reduced in [region]. Expected recovery: [time]"
-  3. Monitor: if outage > 48 hours, activate coverage recovery bonus for region
-  4. Document: add to coverage SLA monitoring
 
-ECONOMIC EXIT (P1 — operators leaving):
-  1. URGENT: run /node-economics for affected region
-     → Is the hardware cost breakeven still achievable at current token price?
-  2. If NOT profitable: governance proposal required immediately
-     Options: (a) increase regional reward multiplier, (b) decrease hardware requirements,
-              (c) subsidize hardware cost for underserved regions
-  3. Activate coverage bonus: 2-5× rewards for filling vacated hexes
-  4. Communicate to remaining operators: "Coverage bonus active in [region]"
-```
+---
 
-## Coverage Recovery Activation
+## Step 2 — Diagnose root cause
+
+| Root cause | Signal | Response |
+|---|---|---|
+| **Reward rate too low** | Node ROI < breakeven, forum complaints | Step 3a |
+| **Hardware failure** | Cluster of nodes in same region offline | Step 3b |
+| **RPC provider outage** | All nodes using same RPC going offline | Step 3b |
+| **Firmware bug** | Nodes on same firmware version failing | Step 3c |
+| **Competitor launch** | Operators announcing migration | Step 3d |
+| **Token price crash** | Rewards denominated in falling token | → `runbooks/token-price-crash.md` |
+
+---
+
+## Step 3 — Respond by root cause
+
+### Step 3a — Reward rate: boost coverage incentives
 
 ```typescript
-// Governance proposal: activate coverage bonus for vacated hexes
-const vacatedHexes = detectCoverageCollapse(current, previous, { collapse_threshold_pct: 20 });
+// Temporary: increase reward multiplier for affected H3 hexes
+// Via governance proposal or admin action (if within admin parameters):
 
-// Proposal: increase reward multiplier in vacated hexes for 30 days
-const proposal = {
-  action: "ACTIVATE_COVERAGE_BONUS",
-  hexes: vacatedHexes.vacated_hexes,
-  multiplier: 3,         // 3× base reward
-  duration_epochs: 30,   // 30 days
-  funded_from: "ecosystem_grants_allocation",
-};
+const underservedHexes = await getUnderservedHexes(targetCoverageThreshold);
+
+for (const hex of underservedHexes) {
+  await program.methods
+    .setHexMultiplier(hex.h3Index, 2.5 /* 2.5× multiplier */)
+    .accounts({ networkConfig, authority })
+    .rpc();
+}
+// This is temporary — remove multiplier after coverage recovers
 ```
 
-## Resolution Criteria
+### Step 3b — Infrastructure: communicate + wait
 
-- Coverage returns to >90% of SLO target for 7 consecutive days
-- Root cause documented: hardware, economic, or external event
-- Post-incident: update coverage SLO monitoring thresholds if gap was discovered
+```
+1. Post status update to Discord/Twitter within 1 hour of detection
+2. Identify affected RPC provider and contact their support
+3. Document affected node count and estimated recovery time
+4. If RPC issue: provide operators with backup RPC URL to update configs
+```
+
+### Step 3c — Firmware bug: coordinate rollback
+
+```bash
+# Push firmware rollback to affected node fleet
+# This depends on your OTA update mechanism:
+# Signal the update channel for affected nodes to rollback to <LAST_STABLE_VERSION>
+
+# Communicate in operator Discord with exact steps:
+# 1. Download firmware v<LAST_STABLE_VERSION> from: <FIRMWARE_DOWNLOAD_URL>
+# 2. Flash using: <FLASH_COMMAND>
+# 3. Restart device: <RESTART_COMMAND>
+```
+
+### Step 3d — Competition: retain operators
+
+```
+Short term:
+- Reach out to top 20 operators personally via DM
+- Offer coverage bonus for staying (requires governance approval)
+- Highlight product roadmap differentiators
+
+Medium term:
+- Review tokenomics — are operators genuinely profitable?
+- Run operator ROI analysis: skill/depin-tokenomics.md → Death Spiral section
+- If ROI is negative: this is a Week-2 Death situation → escalate to Protocol Lead
+```
+
+---
+
+## Step 4 — Monitor recovery
+
+```bash
+# Set up hourly checks while drift is active
+watch -n 3600 '
+  ACTIVE=$(psql <DB_URL> -t -c "SELECT COUNT(*) FROM node_accounts WHERE status = '"'"'active'"'"'")
+  TOTAL=$(psql <DB_URL> -t -c "SELECT COUNT(*) FROM node_accounts")
+  echo "Active nodes: $ACTIVE / $TOTAL ($(echo "$ACTIVE * 100 / $TOTAL" | bc)%)"
+'
+```
+
+---
+
+## Step 5 — Post-incident
+
+- [ ] Root cause identified and documented
+- [ ] Operator communication sent
+- [ ] Coverage recovery timeline set and tracked
+- [ ] Tokenomics reviewed if reward-rate was root cause
+- [ ] Anti-churn alert thresholds reviewed

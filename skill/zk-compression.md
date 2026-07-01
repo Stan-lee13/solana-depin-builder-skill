@@ -339,7 +339,30 @@ export function estimateRewardDistributionCost(recipientCount: number): {
 }
 
 async function sendWithRetry(rpc: any, signer: Keypair, ixs: any[], blockhash: string) {
-  return `sig-placeholder`; // Implement with @solana/web3.js VersionedTransaction
+  // Build and send a VersionedTransaction with retry logic
+  const messageV0 = new TransactionMessage({
+    payerKey:           signer.publicKey,
+    recentBlockhash:    blockhash,
+    instructions:       ixs,
+  }).compileToV0Message();
+
+  const tx = new VersionedTransaction(messageV0);
+  tx.sign([signer]);
+
+  let lastError: unknown;
+  for (let attempt = 1; attempt <= 3; attempt++) {
+    try {
+      const sig = await rpc.sendTransaction(tx, { skipPreflight: false });
+      // Wait for confirmation
+      const { value } = await rpc.confirmTransaction(sig, "confirmed");
+      if (value.err) throw new Error(`Transaction failed: ${JSON.stringify(value.err)}`);
+      return sig;
+    } catch (err) {
+      lastError = err;
+      if (attempt < 3) await sleep(1_500 * attempt); // exponential back-off
+    }
+  }
+  throw lastError;
 }
 function chunkArray<T>(arr: T[], size: number): T[][] {
   return Array.from({ length: Math.ceil(arr.length / size) }, (_, i) =>

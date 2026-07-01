@@ -14,7 +14,8 @@ Load the agent below that matches the current task. Never load more than one age
 | Design a new DePIN protocol from scratch | `agents/depin-architect.md` | opus |
 | Token economics, emission schedules, operator ROI | `agents/reward-engineer.md` | sonnet |
 | Hardware → Solana firmware pipeline | `agents/hardware-engineer.md` | sonnet |
-| Node operator dashboard, fleet UX | `agents/operator-ux-engineer.md` | sonnet |
+| Node operator dashboard, fleet UX, onboarding | `agents/operator-ux-engineer.md` | sonnet |
+| Operator guides, ADRs, API references, runbooks | `agents/tech-docs-writer.md` | sonnet |
 
 ---
 
@@ -45,6 +46,7 @@ COMPUTE       (GPU, CPU, AI)       → Compute verification → No geo unit  →
 MAPPING       (dashcam, lidar)     → Contribution scoring → H3 hexagons  → Pattern D
 BANDWIDTH     (proxy, CDN)         → Bandwidth serving    → IP-based     → Pattern E
 STORAGE       (distributed files)  → Proof-of-storage     → Capacity     → Pattern F
+ENERGY        (solar, grid)        → Meter attestation    → Grid zones   → Pattern G
 ```
 
 ---
@@ -55,8 +57,8 @@ STORAGE       (distributed files)  → Proof-of-storage     → Capacity     →
 Level 1 — Centralized (team-operated)      → Pre-mainnet only, <1K nodes, never permanent
 Level 2 — Switchboard v3 custom feed        → Mainnet sensor/data networks
 Level 3 — Custom Ed25519 multi-party        → Unique proof types with hardware signatures
-Level 4 — TEE (Marlin Oyster / Intel SGX)   → Compute verification networks
-Level 5 — ZK Proof (Groth16 / PLONK)       → Highest trust, highest cost
+Level 4 — TEE (Marlin Oyster / Intel TDX)   → Compute verification networks
+Level 5 — ZK Proof (Groth16 / PLONK)        → Highest trust, highest cost
 ```
 
 ---
@@ -82,13 +84,17 @@ Every DePIN network needs all four — address each before launch:
 - **Emission schedule cannot change post-TGE** — lock it before launch
 - **Network authority must be a Squads multisig** — no single admin key ever
 - **Reward distribution must be pausable** — emergency mechanism required
+- **Crank keypairs must be in KMS** — AWS KMS / GCP KMS / HashiCorp Vault only
 
 ---
 
 ## Sub-Skill Routing
 
+### Core skills
+
 | User intent | Load |
 |---|---|
+| DePIN landscape, protocol comparisons, post-mortems | `skill/overview.md` |
 | Design overall network architecture | `skill/network-architecture.md` |
 | Build node registration + identity | `skill/node-registry.md` |
 | Get device data onto Solana | `skill/oracle-integration.md` |
@@ -99,7 +105,33 @@ Every DePIN network needs all four — address each before launch:
 | Firmware → Solana pipeline per device type | `skill/hardware-integration.md` |
 | TGE handoff to Token Launch skill | `skill/depin-token-launch.md` |
 | Rogue nodes, oracle attacks, incident handling | `skill/incident-response-integration.md` |
+| Distributed file storage, proof-of-storage | `skill/storage.md` |
+
+### Advanced skills
+
+| User intent | Load |
+|---|---|
+| 100K–1M device accounts at 1/1000th rent | `skill/zk-compression.md` |
+| Burn-and-mint equilibrium, death-spiral detector | `skill/depin-tokenomics.md` |
+| SE attestation, firmware signing, anti-counterfeit | `skill/hardware-supply-chain.md` |
+| FCC/CE compliance, 8-jurisdiction RF matrix | `skill/regulatory-rf-compliance.md` |
+| Operator wallet, crank key KMS, A1–A8 threats | `skill/depin-wallet-security.md` |
+
+### Innovation skills (novel — load when scaling past 1,000 nodes)
+
+| User intent | Load |
+|---|---|
+| Auto-switch proof by H3 cell density | `skill/adaptive-proof-engine.md` |
+| On-chain SLA insurance for enterprise buyers | `skill/coverage-insurance.md` |
+| Bayesian node reputation + tiered rewards | `skill/node-reputation-system.md` |
+| Dynamic data pricing via supply/demand curve | `skill/data-pricing-oracle.md` |
+
+### Cross-skill signals
+
+| User intent | Load |
+|---|---|
 | Cross-skill event signals | `ecosystem-signals.md` |
+| Wallet security baseline (shared) | `wallet-framework.md` |
 
 ---
 
@@ -107,5 +139,9 @@ Every DePIN network needs all four — address each before launch:
 
 | Command | When to use |
 |---------|-------------|
-| `commands/depin-audit.md` | `/depin-audit` — full DePIN protocol audit |
+| `commands/depin-audit.md` | `/depin-audit` — full 8-domain DePIN protocol audit |
 | `commands/node-economics.md` | `/node-economics` — operator ROI and emission modeling |
+| `commands/depin-deploy.md` | `/depin-deploy` — pre-mainnet deployment checklist |
+| `commands/depin-design.md` | `/depin-design` — full network design from scratch |
+| `commands/depin-diagram.md` | `/depin-diagram` — generate Mermaid architecture diagrams |
+| `commands/depin-hardware.md` | `/depin-hardware` — hardware BOM + cost estimation |

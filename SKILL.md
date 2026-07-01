@@ -24,6 +24,24 @@ Load only what the task requires. Never load everything at once.
 | Rogue nodes, oracle attacks, incident response | `skill/incident-response-integration.md` |
 | Distributed file storage / proof-of-storage | `skill/storage.md` |
 
+### Innovation skill files (novel — not in any other Solana AI Kit skill)
+
+| User intent | Load |
+|---|---|
+| Auto-switch proof strategy by H3 cell density | `skill/adaptive-proof-engine.md` |
+| On-chain SLA insurance pool / enterprise data contracts | `skill/coverage-insurance.md` |
+| Bayesian node reputation score + tiered reward multipliers | `skill/node-reputation-system.md` |
+| Dynamic data pricing (supply/demand bonding curve) | `skill/data-pricing-oracle.md` |
+
+### Advanced skill files
+
+| User intent | Load |
+|---|---|
+| Hardware supply chain, SE attestation, anti-counterfeit | `skill/hardware-supply-chain.md` |
+| RF regulatory compliance (FCC, CE, 8 jurisdictions) | `skill/regulatory-rf-compliance.md` |
+| Token economics + death-spiral early warning | `skill/depin-tokenomics.md` |
+| ZK compression for 100K–1M device accounts | `skill/zk-compression.md` |
+
 ### Security & wallet files
 
 | User intent | Load |
@@ -39,6 +57,7 @@ Load only what the task requires. Never load everything at once.
 | Token economics, emission schedules, operator ROI | `agents/reward-engineer.md` |
 | Firmware pipeline, secure boot, hardware attestation | `agents/hardware-engineer.md` |
 | Operator dashboard, fleet UX, onboarding flow | `agents/operator-ux-engineer.md` |
+| Technical documentation, operator guides, ADRs | `agents/tech-docs-writer.md` |
 
 ### Commands
 
@@ -89,7 +108,7 @@ COMPUTE          GPU/CPU rental, AI inference, rendering
 
 SENSOR / DATA    Weather, air quality, GPS corrections, traffic
                  Pattern: GEODNET → data accuracy verification + data marketplace
-                 Load: oracle-integration.md + data-marketplace.md + hardware-integration.md
+                 Load: oracle-integration.md + data-marketplace.md + data-pricing-oracle.md
 
 MAPPING          Dashcams, lidar, satellite imagery
                  Pattern F: Hivemapper → lidar/dashcam drive coverage, GPS anti-spoof, H3 freshness multiplier
@@ -108,6 +127,8 @@ ENERGY           Solar generation, demand response, grid balancing
                  Load: oracle-integration.md + reward-system.md + hardware-integration.md
 ```
 
+---
+
 ## Universal DePIN stack (always applies)
 
 Every DePIN network needs these four components — address all four:
@@ -119,6 +140,32 @@ Every DePIN network needs these four components — address all four:
 4. GROWTH       Bootstrap mechanics → coverage incentives → demand generation
 ```
 
+---
+
+## Innovation layer (load when scaling past 1,000 nodes)
+
+These four files address problems that don't exist at launch but become critical at scale:
+
+```
+PROOF GAMING         → skill/adaptive-proof-engine.md
+  Fixed proof becomes gameable at high node density.
+  Auto-switch to VRF challenge when cell exceeds threshold.
+
+ENTERPRISE TRUST     → skill/coverage-insurance.md
+  Enterprise buyers need SLA guarantees, not best-effort.
+  On-chain insurance pool pays out automatically when uptime < threshold.
+
+NODE QUALITY DECAY   → skill/node-reputation-system.md
+  Binary active/inactive misses degrading nodes before they go rogue.
+  Bayesian reputation score detects degradation continuously.
+
+DATA PRICING         → skill/data-pricing-oracle.md
+  Fixed price set at launch is always wrong at scale.
+  Bonding curve adjusts price every epoch toward market equilibrium.
+```
+
+---
+
 ## Critical safety rules (always active)
 
 - Never design reward systems without anti-Sybil protection — fake nodes drain the treasury
@@ -128,3 +175,4 @@ Every DePIN network needs these four components — address all four:
 - Network authority must be Squads multisig — no single admin key ever
 - Emergency pause must be implemented and tested before mainnet launch
 - Crank / oracle keypairs must be in KMS/Vault — never in `.env` files
+- Price oracle authority must be Squads multisig — no single EOA can manipulate pricing

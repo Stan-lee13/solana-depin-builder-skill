@@ -1,5 +1,8 @@
 # Oracle Key Compromise — Incident Response Runbook
 
+> **Configuration required before use:** Replace all `<PLACEHOLDER>` values with your
+> protocol-specific values. These are marked inline with comments explaining where to find each value.
+> Bookmark this runbook — you will run it under pressure.
 **Severity:** P0
 **Response SLA:** Acknowledge in 5 min, key rotated in 30 min
 **Owner:** Protocol security lead + DevOps
@@ -23,7 +26,7 @@
 # This prevents the compromised key from submitting any more proofs
 
 anchor invoke \
-  --program-id <YOUR_PROGRAM_ID> \
+  --program-id <YOUR_PROGRAM_ID> \     # Get from: anchor keys list — or view on Solscan
   --instruction-name emergency_pause \
   --accounts "network_config=<CONFIG_PDA>,pause_authority=<PAUSE_AUTHORITY_PUBKEY>" \
   --keypair ~/.config/solana/pause-authority.json \
@@ -80,7 +83,7 @@ aws kms schedule-key-deletion \
 # If key is in environment variable — rotate the secret immediately
 aws secretsmanager rotate-secret \
   --secret-id "depin-oracle-signing-key" \
-  --rotation-lambda-arn <YOUR_ROTATION_LAMBDA>
+  --rotation-lambda-arn <YOUR_ROTATION_LAMBDA_ARN>  # from AWS Lambda console or CDK output
 
 # If key was in a .env file committed to git — invalidate immediately:
 # 1. The key is permanently burned — treat all work signed with it as suspect
@@ -172,7 +175,7 @@ kubectl rollout status deployment/oracle-service
 # Verify new key is submitting successfully (wait 1 epoch)
 # Then unpause:
 anchor invoke \
-  --program-id <YOUR_PROGRAM_ID> \
+  --program-id <YOUR_PROGRAM_ID> \     # Get from: anchor keys list — or view on Solscan
   --instruction-name emergency_unpause \
   --accounts "network_config=<CONFIG_PDA>,pause_authority=<PAUSE_AUTHORITY>" \
   --keypair ~/.config/solana/pause-authority.json

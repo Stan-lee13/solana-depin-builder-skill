@@ -386,7 +386,7 @@ pub fn resume_rewards(ctx: Context<EmergencyPause>) -> Result<()> {
 |---|---|---|---|
 | Isolated rogue node | Jail + slash | None (handle internally) | `skill/node-registry.md` |
 | Sybil cluster (≥5 nodes) | Pause rewards | Incident Response (P1) | `solana-incident-response-skill` |
-| Oracle poisoning (confirmed) | Pause + forensics | Incident Response (P0) | `skill/active-exploit-response.md` |
+| Oracle poisoning (confirmed) | Pause + forensics | Incident Response (P0) | `runbooks/oracle-key-compromise.md` |
 | Coverage collapse (economic) | Adjust rewards | Token Launch (governance) | `skill/network-growth.md` |
-| Treasury governance attack | Emergency pause | Incident Response (P0) | `skill/governance-attack.md` runbook |
-| TGE exploit | Pause distribution | Incident Response (P0) | `skill/liquidity-migration.md` |
+| Treasury governance attack | Emergency pause | Incident Response (P0) | `runbooks/governance-attack.md` |
+| TGE exploit | Pause distribution | Incident Response (P0) | `runbooks/token-price-crash.md` |

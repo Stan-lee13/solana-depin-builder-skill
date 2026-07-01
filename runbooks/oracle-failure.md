@@ -1,61 +1,161 @@
-# Runbook: Oracle Failure / Data Manipulation
+# Oracle Feed Failure — Incident Response Runbook
 
-## Severity
+> **Configuration required before use:** Replace all `<PLACEHOLDER>` values with your
+> protocol-specific values. These are marked inline with comments explaining where to find each value.
 
-P0 if oracle is actively poisoning reward distribution (wrong rewards already sent).
-P1 if oracle deviation detected before distribution.
-P2 if oracle is stale/offline but no wrong distribution yet.
+**Severity:** P1 (escalates to P0 if oracle is down > 2 hours)
+**Time to mitigate (target):** < 30 minutes
+**Who runs this:** On-call engineer (primary), Protocol Lead (escalation)
 
-## Symptoms
+---
 
-- `solana_oracle_price_deviation_pct > 15%` alert fires (from Observability)
-- Reward distribution epoch completes but operator amounts look wrong
-- Switchboard feed has not updated in >30 minutes
-- Multiple devices submitting identical proof values (copy-paste attack)
-- Oracle submission rate exceeds physical device capabilities
+## Trigger conditions
 
-## First 5 Minutes
+Run this runbook when any of the following occur:
 
-1. Check Switchboard feed account — is the value updated recently?
-2. Compare oracle value to 3 independent data sources
-3. If deviation confirmed: pause rewards before next epoch closes
-4. If already distributed: record the difference — governance compensation required
+- Oracle heartbeat missing for > 15 minutes
+- On-chain proof submissions drop by > 50% in 15 minutes
+- `OracleFeedStale` errors appearing in program logs
+- Monitoring alert: `oracle_feed_age_seconds > 900`
+- Switchboard queue showing 0 active oracles
 
-## PromQL Equivalent (from Observability)
+---
 
-```
-# Oracle deviation
-abs(solana_oracle_price_deviation_pct) > 15
+## Step 1 — Diagnose (5 min)
 
-# Stale oracle (no update in 30 min)
-time() - solana_oracle_last_update_timestamp > 1800
-```
+### 1a. Check on-chain oracle state
 
-## Recovery Procedure
+```bash
+# Check when the oracle last updated the feed
+solana account <ORACLE_FEED_PUBKEY> --url <RPC_URL>
+# Look for: last_updated_slot — compare to current slot
 
-```
-STALE ORACLE (P2):
-  1. Check Switchboard node operator status
-  2. Switch to backup oracle feed if available
-  3. Delay epoch close until fresh data available
-  4. Resume when oracle lag < 5 minutes
-
-DEVIATION (P1 — pre-distribution):
-  1. Flag as quarantined: do not use for reward calculation
-  2. Use median of remaining valid oracles
-  3. If <50% of expected oracles available → delay epoch
-  4. Investigate flagged oracles → jail if manipulation confirmed
-
-CONFIRMED POISONING (P0 — post-distribution):
-  1. Pause ALL further distributions
-  2. Audit: which operators received wrong amounts?
-  3. Governance proposal: compensation for under-rewarded, claw-back for over-rewarded
-  4. Fix oracle trust level — upgrade from Level 1 to Level 2 if this was centralized oracle
-  5. Load solana-incident-response-skill
+# Check current slot
+solana slot --url <RPC_URL>
+# If (current_slot - last_updated_slot) > 900: oracle is stale
 ```
 
-## Resolution Criteria
+### 1b. Check oracle service health
 
-- Oracle feed verified clean for 3 consecutive epochs
-- Reward distribution error calculated and governance proposal submitted
-- Oracle trust level reviewed and upgraded if current level was the root cause
+```bash
+# If using Switchboard v3
+curl -s https://api.switchboard.xyz/v2/oracle/<ORACLE_PUBKEY>/health | jq .
+
+# If using custom oracle — SSH into oracle server
+ssh <ORACLE_SERVER_USER>@<ORACLE_SERVER_IP>
+systemctl status depin-oracle
+journalctl -u depin-oracle -n 100 --no-pager
+```
+
+### 1c. Identify failure class
+
+| Symptom | Failure Class | Next step |
+|---|---|---|
+| Oracle process crashed / stopped | **Service failure** | Step 2a |
+| Oracle running but not submitting | **RPC failure** | Step 2b |
+| Oracle submitting but feed not updating | **Program rejection** | Step 2c |
+| Oracle signing key rejected | **Key compromise** | → Run `runbooks/oracle-key-compromise.md` |
+| All oracles failing simultaneously | **Network issue / attack** | Step 2d |
+
+---
+
+## Step 2 — Mitigate
+
+### Step 2a — Service failure: restart oracle
+
+```bash
+# On oracle server
+systemctl restart depin-oracle
+sleep 10
+systemctl status depin-oracle
+
+# Verify recovery — check feed age drops below 300s
+watch -n 5 'solana account <ORACLE_FEED_PUBKEY> --url <RPC_URL> | grep last_updated'
+```
+
+### Step 2b — RPC failure: switch to backup RPC
+
+```bash
+# In oracle config file (path: <ORACLE_CONFIG_PATH>)
+# Change: rpc_url = "<PRIMARY_RPC>"
+# To:     rpc_url = "<BACKUP_RPC_URL>"
+
+systemctl restart depin-oracle
+
+# Test backup RPC connectivity
+curl -s -X POST <BACKUP_RPC_URL>   -H "Content-Type: application/json"   -d '{"jsonrpc":"2.0","id":1,"method":"getSlot","params":[]}' | jq .result
+```
+
+### Step 2c — Program rejection: check oracle authority
+
+```bash
+# Oracle may be submitting with wrong keypair or to wrong feed
+# Verify oracle keypair matches what is registered on-chain:
+solana-keygen pubkey <ORACLE_KEYPAIR_PATH>
+# Compare output to: <EXPECTED_ORACLE_PUBKEY>
+
+# If mismatch: update oracle config to use correct keypair
+# Do NOT generate a new keypair — use the registered one from KMS/Vault
+# KMS path: <KMS_KEY_PATH>
+```
+
+### Step 2d — Multi-oracle failure: pause program
+
+```bash
+# If all oracles are failing and you cannot restore within 30 min,
+# pause the program to prevent stale-data reward exploits:
+
+# This requires Squads multisig approval
+# 1. Open Squads: https://v3.squads.so/
+# 2. Create transaction: call set_paused(true) on <PROGRAM_ID>
+# 3. Collect 3-of-5 signatures
+# 4. Execute
+
+# Post-pause: no new proofs accepted — nodes cannot earn but also cannot exploit stale oracle
+```
+
+---
+
+## Step 3 — Verify recovery (5 min)
+
+```bash
+# Confirm oracle is submitting fresh data
+CURRENT_SLOT=$(solana slot --url <RPC_URL>)
+LAST_UPDATE=$(solana account <ORACLE_FEED_PUBKEY> --url <RPC_URL> | grep last_updated_slot | awk '{print $2}')
+AGE=$((CURRENT_SLOT - LAST_UPDATE))
+echo "Oracle feed age: ${AGE} slots (target < 300)"
+
+# Confirm proof submissions resuming
+# Check your monitoring dashboard: proof_submissions_per_15min should return to baseline
+```
+
+---
+
+## Step 4 — Unpause (if paused in Step 2d)
+
+```bash
+# Via Squads multisig (same process as pause)
+# Call set_paused(false) on <PROGRAM_ID>
+# Collect 3-of-5 signatures → execute
+```
+
+---
+
+## Step 5 — Post-incident
+
+- [ ] Write incident summary: when it started, root cause, how long oracle was down
+- [ ] Check if any nodes submitted fraudulent proofs during the window (query: proofs with `oracle_slot` during outage)
+- [ ] If fraudulent proofs found: run `runbooks/rogue-node-detected.md`
+- [ ] Add monitoring: alert if `oracle_feed_age_seconds > 600` (lower threshold)
+- [ ] Document in incident log: `<INCIDENT_LOG_PATH>`
+
+---
+
+## Escalation
+
+| Condition | Action |
+|---|---|
+| Oracle down > 30 min | Page Protocol Lead |
+| Oracle down > 2 hours | Pause program, page all team members |
+| Oracle key compromised | → `runbooks/oracle-key-compromise.md` immediately |
+| Evidence of exploit during outage | → `skill/incident-response-integration.md` |

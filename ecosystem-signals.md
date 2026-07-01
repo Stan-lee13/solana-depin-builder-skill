@@ -171,7 +171,7 @@ export interface DepinNetworkMilestoneSignal {
 }
 ```
 
-### DEPIN_OPERATOR_ALERT → Operator UX / Dashboard
+### DEPIN_OPERATOR_ALERT → Operator UX / Dashboard (→ `solana-ux-skill`)
 
 ```typescript
 export interface DepinOperatorAlertSignal {
@@ -453,3 +453,32 @@ export interface WalletSigningLatencySignal {
 | `device_pubkey` | The Ed25519 pubkey embedded in device firmware (≠ operator wallet) |
 | `h3_index` | H3 hex cell identifier at resolution 8 (standard for DePIN coverage maps) |
 | P0 / P1 / P2 | Severity: P0 = immediate (funds at risk), P1 = urgent (15 min), P2 = watch (1 hr) |
+
+---
+
+## Shared Threat Model — A1-A8
+
+All five Solana AI skills share this threat taxonomy. When routing security signals, use these labels:
+
+| Code | Threat | Primary Skill | Signal |
+|---|---|---|---|
+| **A1** | RPC endpoint manipulation / MITM | Incident Response | `INCIDENT_P0_ALERT` |
+| **A2** | Clipboard hijacking (address swap) | UX Skill | `WALLET_ADDRESS_POISONING_DETECTED` |
+| **A3** | Transaction simulation bypass | UX Skill | `WALLET_KEY_COMPROMISED` |
+| **A4** | Supply chain compromise (malicious packages) | Incident Response | `INCIDENT_P0_ALERT` |
+| **A5** | Oracle key compromise / feed manipulation | DePIN + Incident Response | `DEPIN_ORACLE_ANOMALY` |
+| **A6** | Sybil / rogue node cluster | DePIN | `DEPIN_ROGUE_NODE` |
+| **A7** | Governance attack (malicious proposal) | Token Launch + Incident Response | `INCIDENT_P0_ALERT` |
+| **A8** | Address poisoning / dust attack | UX Skill | `WALLET_ADDRESS_POISONING_DETECTED` |
+
+### Cross-skill P0 escalation path
+
+```
+Any A1-A8 event detected
+  → Emit signal with severity=P0
+  → Route to: solana-incident-response-skill (primary handler)
+  → CC:       solana-observability-skill (monitoring record)
+  → Notify:   Protocol Lead via PagerDuty within 5 min
+  → Pause:    program if A1/A4/A5 involves active exploit
+```
+

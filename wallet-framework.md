@@ -15,8 +15,8 @@ Each has different security requirements, threat vectors, and lifecycle operatio
 
 | Wallet Type | Owner | Security Tier | Primary Skill File |
 |---|---|---|---|
-| Protocol upgrade authority | Protocol team | Squads 3-of-5 | `skill/wallet-tge-security.md` (in `solana-token-launch-skill`) |
-| Mint / emission authority | Protocol team | Squads 3-of-5 | `skill/wallet-tge-security.md` (in `solana-token-launch-skill`) |
+| Protocol upgrade authority | Protocol team | Squads 3-of-5 | `wallet-tge-security.md` (→ `solana-token-launch-skill` repo) |
+| Mint / emission authority | Protocol team | Squads 3-of-5 | `wallet-tge-security.md` (→ `solana-token-launch-skill` repo) |
 | Epoch crank keypair | Automated (server) | AWS KMS | `skill/depin-wallet-security.md` |
 | Oracle submitter keypair | Automated (server) | AWS KMS | `skill/oracle-integration.md` |
 | Fee payer keypair | Automated (server) | Hot wallet, monitored | `skill/depin-wallet-security.md` → monitoring section |
